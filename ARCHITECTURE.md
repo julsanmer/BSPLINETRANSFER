@@ -1,4 +1,4 @@
-# FASTTRANSFER Architecture
+# BSPLINETRANSFER Architecture
 
 ## Current Scope
 

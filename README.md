@@ -1,6 +1,6 @@
-# FASTTRANSFER
+# BSPLINETRANSFER
 
-FASTTRANSFER contains the Gondelach vs cylindrical B-spline comparison workflow
+BSPLINETRANSFER contains the Gondelach vs cylindrical B-spline comparison workflow
 used for the paper *B-spline shaping for low-thrust interplanetary rendezvous*,
 including grid campaigns, saved-solution postprocessing, and single-transfer
 examples.
@@ -82,7 +82,7 @@ output/compare_gondelach_mercury_bspline10_dep20d_tof20d/
 ## Active Layout
 
 ```text
-FASTTRANSFER/
+BSPLINETRANSFER/
 ├── experiments/
 │   ├── compare_gondelach_fig2_fig3_bspline10.py
 │   ├── postprocess_compare_gondelach_plots.py
