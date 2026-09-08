@@ -53,6 +53,15 @@ Run an additional B-spline variant in the same kept output folder, reusing the c
 python experiments/run_bspline_variant_analysis.py --case mars --bspline-n-ctrl 12 --bspline-degree 5 --bspline-workers 4 --progress
 ```
 
+Run a single-segment Bézier variant by specifying its control-point count.
+The degree is inferred as `n_ctrl - 1`, so ten control points produce a
+degree-nine Bézier curve. Output artifacts use a
+`bezier_nctrl10_deg9_<run-id>` prefix:
+
+```bash
+python experiments/run_bspline_variant_analysis.py --case 1989ml --bezier-n-ctrl 10 --quadrature-order 30 --workers 4 --progress
+```
+
 Variant artifacts include a deterministic configuration run ID, for example
 `bspline_nctrl12_deg5_a1b2c3d4_attempts.csv`. This prevents runs with different
 solver settings from sharing a cache. Postprocessing accepts `12:5` when only
