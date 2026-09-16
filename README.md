@@ -11,14 +11,26 @@ examples.
 
 [`notebooks/simple_mars_trajectory_examples.ipynb`](notebooks/simple_mars_trajectory_examples.ipynb)
 solves one fixed Earth-to-Mars transfer with no departure-date or transfer-time
-grid. It runs the high-order Gondelach hodographic method and a 10-control-point
-quintic cylindrical B-spline, then plots the trajectory and thrust-control
-history for both methods.
+grid. It compares the high-order Gondelach hodographic method, a 10-control-point
+quintic cylindrical B-spline, and a single-segment degree-nine Bézier
+parametrization that also uses 10 control points, then plots each trajectory and
+thrust-control history.
 
 [`notebooks/mercury_quick_porkchop.ipynb`](notebooks/mercury_quick_porkchop.ipynb)
 provides a fast Mercury porkchop demonstration. It evaluates a deliberately
 coarse `10 x 10` departure/TOF grid over one Earth-Mercury synodic period and
-compares the high-order hodographic and quintic B-spline solutions.
+compares the high-order hodographic, quintic B-spline, and degree-nine Bézier
+solutions.
+
+Both notebooks compare the shapes at an equal number of control points rather
+than at an equal polynomial degree. A single Bézier segment satisfies
+`n_ctrl = degree + 1`, so matching the 10-control-point B-spline requires degree
+nine; matching its quintic degree instead would leave only two free control
+points after the endpoint elimination and roughly doubles the resulting Delta V.
+A Bézier curve also spans a single knot interval, so the composite
+Gauss-Legendre objective quadrature places `quadrature_order` nodes over the
+whole transfer instead of over each B-spline span. The notebooks therefore raise
+the Bézier `quadrature_order` to 30, matching the published campaign settings.
 
 The notebook uses the built-in Keplerian ephemeris so it works without the
 external SPICE binary kernels:
