@@ -1,0 +1,979 @@
+%% 
+%% Copyright 2019-2024 Elsevier Ltd
+%% 
+%% Version 2.4
+%% 
+%% This file is part of the 'CAS Bundle'.
+%% --------------------------------------
+%% 
+%% It may be distributed under the conditions of the LaTeX Project Public
+%% License, either version 1.2 of this license or (at your option) any
+%% later version.  The latest version of this license is in
+%%    http://www.latex-project.org/lppl.txt
+%% and version 1.2 or later is part of all distributions of LaTeX
+%% version 1999/12/01 or later.
+%% 
+%% The list of all files belonging to the 'CAS Bundle' is
+%% given in the file `manifest.txt'.
+%% 
+%% Template article for cas-sc documentclass for 
+%% single column output.
+
+%\documentclass[a4paper,fleqn,longmktitle]{cas-sc}
+\documentclass[a4paper,fleqn]{cas-sc}
+
+% Author-year citations: \citet{key} -> Author (year),
+% \citep{key} -> (Author, year). The `sort' option orders grouped
+% parenthetical citations according to the alphabetical bibliography.
+\usepackage[authoryear,round,sort]{natbib}
+\usepackage{tabularx}
+\usepackage[short]{optidef}
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[section]{placeins}
+
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.8}
+
+\setcounter{topnumber}{2}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+
+
+%%%Author macros
+\def\tsc#1{\csdef{#1}{\textsc{\lowercase{#1}}\xspace}}
+\tsc{WGM}
+\tsc{QE}
+\tsc{EP}
+\tsc{PMS}
+\tsc{BEC}
+\tsc{DE}
+%%%
+
+\begin{document}
+\let\WriteBookmarks\relax
+%%%\def\floatpagepagefraction{1}
+%%%\def\textpagefraction{.001}
+
+
+\shorttitle{A B-spline shaping method for low-thrust interplanetary trajectory design}
+\shortauthors{J.C. Sanchez}
+%\begin{frontmatter}
+
+\title [mode = title]{A B-spline shaping method for low-thrust interplanetary trajectory design}                      
+\tnotemark[1,2]
+
+\tnotetext[1]{This document is the results of the research
+   project funded by the National Science Foundation.}
+
+\author[1]{Julio C. Sanchez}[type=editor,
+                        auid=000,bioid=1,
+                        role=Researcher,
+                        orcid=0000-0001-0000-0000]
+\cormark[1]
+\fnmark[1]
+\ead{jsanchezm@us.es}
+\ead[url]{www.jkkrishnan.in}
+
+\credit{Conceptualization of this study, Methodology, Software}
+
+\affiliation[1]{organization={Universidad de Sevilla, Department of Aerospace Engineering and Fluid Mechanics},
+addressline={Camino de los Descubrimientos s/n}, 
+city={Sevilla},
+            postcode={695013}, 
+            state={},
+            country={Spain}}
+
+
+
+\cortext[cor1]{Corresponding author}
+\fntext[fn1]{.}
+
+\begin{abstract}
+Shape-based methods remain attractive for preliminary low-thrust trajectory design because they rapidly generate feasible transfers. The shape methods main strength is the dynamics compliance by design. Following the shape method idea, this work presents a cylindrical-coordinate B-spline shaping method for low-thrust interplanetary trajectory design. The proposed method transcribes the spacecraft trajectory in cylindrical coordinates by using a compact B-spline basis and optimizes the accumulated thrust acceleration. The resulting method is an integration-free non-linear program which optimizes the B-spline control coefficients. Initial and endpoint position-velocity, time of flight and number of revolutions are also prescribed in the optimization problem. The results of the B-spline shaping method are compared against the hodographic shaping benchmarks of Gondelach and Noomen for rendezvous transfers from Earth to Mars, near-Earth asteroid 1989ML, comet Tempel 1, and Mercury. On the available \(20\times 15\) grids, the 10-control-point B-spline formulation obtains lower minimum and median \(\Delta V\) than the reproduced higher-order hodographic method in all four benchmark cases, with formal convergence at nearly all grid points. The comparison also shows that B-spline shaping can reduce \(\Delta V\) at the cost of different maximum-thrust behavior, making Pareto analysis essential when thrust acceleration limits are relevant.
+\end{abstract}
+
+\begin{graphicalabstract}
+\includegraphics{figs/cas-grabs.pdf}
+\end{graphicalabstract}
+
+\begin{highlights}
+\item Research highlights item 1
+\item Research highlights item 2
+\item Research highlights item 3
+\end{highlights}
+
+\begin{keywords}
+quadrupole exciton \sep polariton \sep \WGM \sep \BEC
+\end{keywords}
+
+
+\maketitle
+
+
+\section{Introduction}
+\label{sec:introduction}
+
+The increasing demand for fuel-efficient and high-capability space missions has driven a growing interest in low-thrust propulsion systems, particularly electric thrusters, as alternatives to conventional chemical engines. While chemical propulsion remains indispensable for high-thrust maneuvers — such as launch, planetary orbit insertion, and time-critical trajectory corrections — its fundamental limitation lies in its relatively low specific impulse. Typically, bipropellant systems achieve specific impulses in the range of 300–450 s. By contrast, electric thrusters — including gridded ion engines and Hall-effect thrusters — can reach specific impulses from 1,500 s to over 10,000 s. For a given delta-v budget, this advantage translates directly into a substantially reduced propellant mass requirement through the Tsiolkovsky rocket equation, enabling either leaner spacecraft designs or greater payload capacity. This advantage has been demonstrated extensively in operational missions. The Deep Space 1 spacecraft was the first to validate solar electric propulsion as a primary propulsion system in deep space, successfully completing flybys of asteroid 9969 Braille and comet Borrelly \citet{Rayman2000}. Building on this heritage, the Dawn mission used ion propulsion to become the first spacecraft to orbit two extraterrestrial bodies, achieving orbit at both protoplanet Vesta and dwarf planet Ceres — a mission that would have been infeasible with chemical propulsion within its cost constraints \citet{Brophy2011}. The Japanese Hayabusa and Hayabusa2 missions exploited microwave-discharge and gridded ion engines to accomplish round-trip sample-return missions to near-Earth asteroids Itokawa and Ryugu, respectively \citet{Kuninaka2007, Tsuda2013}. ESA's SMART-1 validated electric primary propulsion for orbit-raising, spiraling from a geostationary transfer orbit to lunar capture over 13 months using only a Hall-effect thruster \citet{Racca2002}. In the commercial sector, Boeing's 702SP satellite platform introduced fully all-electric orbit-raising and stationkeeping using XIPS ion thrusters, eliminating the on-board chemical apogee engine entirely and achieving a dry-mass fraction of approximately 80\% — roughly double that of conventional chemically propelled platforms \citet{Feuerborn2013}. The principal trade-off is thrust magnitude. Electric thrusters produce forces on the order of millinewtons to a few newtons, several orders of magnitude below chemical engines. Accordingly, the operation of electric propulsion is commonly referred to as low-thrust propulsion. Unlike high-thrust maneuvers, which can be adequately modeled as instantaneous velocity changes (impulsive burns), low-thrust trajectories require extended thrusting arcs over many orbital revolutions to achieve the desired orbit change. This renders low-thrust trajectory rendezvous design substantially more complex, motivating the scope of this work.
+ 
+Continuous-thrust trajectory optimization is traditionally formulated as an optimal control problem and solved using Pontryagin’s Minimum Principle \citet{Pontryagin1962}, yielding a nonlinear two-point boundary-value problem in the state and costate variables \citet{Bryson1975}. For bounded-thrust minimum-fuel problems, the optimal throttle follows a bang-bang or bang-off-bang law determined by the switching function (primer vector) \cite{Russell2007, Prussing2010}, making the resulting TPBVP highly sensitive to the initial costate guess and difficult to solve numerically. Due to this reason, low-thrust indirect methods require the addition of heuristic or hybrid techniques to converge \citep{Morante2021}. In \citep{Taheri2016}, an extended logarithmic smoothing technique combined with a continuation strategy is proposed to regularize the bang-bang control structure which improves the convergence of indirect minimum-fuel rendezvous solutions. Similarly, \citet{Tang2018} proposed a hybrid optimization framework combining successive convex programming, pseudospectral methods, and indirect optimization, where adjoint mapping and homotopy continuation are employed to improve costate initialization and robustly converge to fuel-optimal solutions. Likewise, \citet{PerezPalau2018} solved fuel-optimal Earth–Moon transfers via indirect optimal control, relying on a large-scale exploration of the initial costate space to overcome the convergence difficulties of the shooting method. More recently, \citet{Wang2022} developed an indirect framework that combines analytical derivatives, continuation, and switching detection to efficiently solve bang-bang low-thrust problems with interior-point constraints, significantly enlarging the convergence domain while preserving computational efficiency.
+
+Alternatively, direct optimization methods discretize the optimal control problem into a finite nonlinear programming problem \citet{Hargraves1987, Betts1998}, generally providing improved robustness and reducing sensitivity to the initial guess compared with indirect approaches. Although these methods generally sacrifice strict optimality due to the finite-dimensional approximation for the sake of convergence and computational efficiency \citep{Urrios2024}. A popular family of direct methods is the collocation approach \citep{Topputo2014} which approximates the state and control histories by using polynomial functions while enforcing dynamics at a finite set of collocation points. By doing so, the continuous optimal control problem is transformed into a set of algebraic constraints. A popular collocation approach is the pseudospectral method which approximates the state and control histories by using global orthogonal polynomials while enforcing the dynamics at selected collocation points \citep{Garg2010}. An application for low-thrust rendezvous application can be found in \citet{Li2014} which combined shape-based trajectory design with Radau pseudospectral optimization, exploiting the former for rapid preliminary design and the latter for accurate trajectory refinement. Still, direct optimization approaches require an adequate initial guess of the trajectory and control evolution which may be hard for multi-revolution transfers. 
+
+A subclass of direct optimization is the use of shape-based methods in which the spacecraft trajectory or control is parameterized by a family of basis functions. Shape-based methods represent the trajectory with expressive base functions parameterized by small set of design parameters which allow a rapid convergence. The pioneer work in this area stems from \citep{Petropoulos2004} which introduces the exponential sinusoid as a basis function for the orbital radius under tangential thrust. An improvement was made by \citep{NovakVasile2011} by extending the concept to the optimization of the shaping function coefficients. Later, \citep{Gondelach2015} presented the hodographic shaping method which parameterized the velocity in cylindrical coordinates instead of the position evolution. In that publication the tradeoff between a fast low-order, same coefficients as boundary conditions, shape function and an optimized high-order function is detailed. In \citep{Taheri2016} proposes the use of finite Fourier series TBD. More recently, \citep{Wu2022} proposes analytical shaping with a cubic spline function per segment which can be extended for optimality by finding the optimal splines coefficients.
+
+This manuscript proposes a B-spline shaping method for low-thrust trajectory rendezvous. The trajectory is described by cylindrical coordinates which are parameterized with B-splines functions \citep{DeBoor1972}. The cylindrical dynamics has the flatness property \citep{Fliess1995} and the control acceleration can be uniquely determined by the cylindrical coordinates parameterization. The B-spline representation provides a smooth and compact description of the trajectory through a limited number of control points while preserving local support, enabling local trajectory modifications without affecting the entire solution. Consequently, the continuous optimal control problem is transformed into a finite-dimensional nonlinear programming problem in which the B-spline control points constitute the optimization variables. The dynamics is satisfied by design and there are no associated constraints to them. This formulation seeks to balance computational efficiency and trajectory accuracy, making it suitable for the rapid generation of feasible low-thrust rendezvous trajectories.
+
+This work mainly compares with the \citep{Gondelach2015} high-order solutions for transfers to Mars, Mercury, comet Tempel-1 and asteroid 1989ML. Our first main contribution is the demonstration that the optimization of the cylindrical B-splines parameterization produces lower delta-v solutions for the majority of analyzed transfers. The second contribution is that the B-spline support is quite general since only the number of control points and basis polynomial degree have to be adjusted. Differently from \citep{Gondelach2015} there is no need to handcraft the basis functions. Shaped-based B-spline parameterizations have been used in the field of attitude path planning \citep{Louembet2009, Sanchez2020_AA}, model predictive control for cislunar rendezvous \citep{Sanchez2020_AA} and maneuver planning around asteroids \citep{Dambrosio2023}. However, up to the author knowledge, their use has not been explored for low-thrust interplanetary transfers.
+
+The structure of this paper is as follows. Section~\ref{sec:problem} states the low-thrust rendezvous problem in cylindrical coordinates, its polynomial shaping, and the semi-infinite thrust constraint that shaping leaves open. Section~\ref{sec:enforcement} develops the analytical enforcement of that constraint: the Levi-Civita and Kustaanheimo--Stiefel maps that make the heliocentric distance polynomial, the Sundman transformation that lowers the degree of the control numerators, the rational B\'ezier convex-hull condition, and the three shaping families built on it. Section~\ref{sec:implementation} describes the nonlinear program, the seeding procedure, and the post-solve verification. Section~\ref{sec:results} presents numerical results, and Section~\ref{sec:conclusions} concludes the paper.
+
+\section{Shaping-based low-thrust interplanetary rendezvous}
+\label{sec:problem}
+
+\subsection{Low-thrust interplanetary rendezvous}
+\label{sec:continuous}
+
+This work focuses on the fixed-time rendezvous problem with
+low thrust. The transfer time and number of revolutions are fixed, and the goal
+is to minimize an objective function which depends on the control. Since the
+spacecraft mass is not included as a state variable, the control
+$\mathbf{u}$ represents thrust acceleration rather than thrust force. The
+trajectory is parameterized in cylindrical coordinates
+$\mathbf{q}=[\rho,\,\theta,\,z]^T$, where $\rho$ is the distance of the spacecraft projection
+onto the ecliptic plane from the Sun, $\theta$ is the ecliptic longitude, and
+$z$ is the displacement normal to the ecliptic. The heliocentric distance is $r=\sqrt{\rho^2+z^2}$. Using the cylindrical velocity $\mathbf{v}=[v_\rho,\,v_\theta,\,v_z]^T$, the
+low-thrust rendezvous problem is
+
+\begin{mini}
+	{\mathbf{u}(\cdot)}
+	{J(\mathbf{u}(\cdot))}
+	{\label{prob:main}}{}
+	\addConstraint{\dot{\rho}=v_\rho,\qquad\quad\>\>\>
+		\dot{v}_\rho=\frac{v_\theta^2}{\rho}-\frac{\mu\rho}{r^3}+u_\rho}
+	\addConstraint{\dot{\theta}=\frac{v_\theta}{\rho},\qquad\quad\>\>
+		\dot{v}_\theta=-\frac{v_\rho v_\theta}{\rho}+u_\theta}
+	\addConstraint{\dot{z}=v_z,\qquad\quad\>\>\>
+		\dot{v}_z=-\frac{\mu z}{r^3}+u_z}
+	\addConstraint{\mathbf{q}(t_0)=\mathbf{q}_0,\qquad
+		\mathbf{v}(t_0)=\mathbf{v}_0}
+	\addConstraint{\mathbf{q}(t_f)=\mathbf{q}_f,\qquad
+		\mathbf{v}(t_f)=\mathbf{v}_f}
+	\addConstraint{\lVert\mathbf{u}(t)\rVert\leq u_{\max},
+		\qquad t\in[t_0,t_f].}
+\end{mini}
+
+The boundary states are obtained from the ephemerides of the departure and
+target bodies at $t_0$ and $t_f$, respectively. The transfer time
+$T=t_f-t_0$ and the number of revolutions $N\in\mathbb{N}$ are fixed. The
+unwrapped terminal longitude is selected consistently with $N$, i.e., it
+differs from the physical terminal longitude by the required multiple of
+$2\pi$.
+
+Two objectives are considered. In the minimum-$\Delta V$ problem,
+$J=\Delta V=\int_{t_0}^{t_f}\lVert\mathbf{u}(t)\rVert\,\mathrm{d}t$ for a
+prescribed acceleration cap $u_{\max}$; solving it for a sequence of caps
+traces the $u_{\max}$--$\Delta V$ Pareto front, and when no cap is prescribed
+the path constraint is omitted and the peak acceleration is evaluated a
+posteriori. In the minimum-peak problem, $u_{\max}$ is itself a decision
+variable and $J=u_{\max}$, so the path constraint is active by construction.
+In both cases the path constraint must hold at every instant of the transfer,
+which is the difficulty addressed in this work.
+
+\subsection{Polynomial shaping as a finite-dimensional problem}
+\label{sec:shaping}
+
+Shaping methods parameterize the spacecraft trajectory with a set of basis
+functions. Some examples are Fourier series, B\'ezier curves or B-splines. By
+parameterizing the trajectory, the dynamics and the boundary conditions can be
+satisfied by design. In this work, polynomial shaping (e.g. B\'ezier curves,
+B-splines, etc.) is analyzed. Let us parameterize the cylindrical coordinates as
+\begin{equation}
+	\mathbf{q}(\tau)=\sum^{n_c}_{i=1}\mathbf{c}_i B_i(\tau),\qquad\tau\in[0,1],
+	\label{eq:shaping}
+\end{equation}
+where $B_i$ are polynomial basis functions, $\mathbf{c}_i$ are control points,
+and $\tau$ is the curve parameter. Throughout this section $\tau=(t-t_0)/T$ is
+the normalized time; Section~\ref{sec:sundman} replaces it by a normalized
+Sundman arc, and everything below carries over with the corresponding
+change of the endpoint rates. With that parameterization, the derivatives of the
+cylindrical coordinates are
+\begin{equation}
+	\mathbf{q}'(\tau)=\sum^{n_c}_{i=1}\mathbf{c}_i B_i'(\tau),\quad\quad
+	\mathbf{q}''(\tau)=\sum^{n_c}_{i=1}\mathbf{c}_i B_i''(\tau),
+\end{equation}
+where primes denote derivatives with respect to $\tau$, and the physical-time
+derivatives follow from the chain rule,
+$\dot{\mathbf q}=\mathbf q'/T$ and $\ddot{\mathbf q}=\mathbf q''/T^2$. Then,
+the required control acceleration $\mathbf{u}$ can be obtained from the inverse dynamics of
+Problem~\eqref{prob:main} as
+\begin{equation}
+	\mathbf{u}
+	=
+	\begin{bmatrix}
+		u_\rho\\
+		u_\theta\\
+		u_z
+	\end{bmatrix}
+	=
+	\dfrac{1}{r^3}\begin{bmatrix}
+		r^3(\ddot{\rho}-\rho\dot{\theta}^{2})+\mu\rho\\[1mm]
+		r^3(2\dot{\rho}\dot{\theta}+\rho\ddot{\theta})\\[1mm]
+		r^3\ddot{z}+\mu z
+	\end{bmatrix}=\dfrac{1}{W}
+	\begin{bmatrix}
+		P_\rho\\[1mm]
+		P_\theta\\[1mm]
+		P_z
+	\end{bmatrix},\qquad W=r^3,
+	\label{eq:flatness2}
+\end{equation}
+so that the control is a rational function of the shaped coordinates and
+their first two derivatives. This is the flatness property of the low-thrust cylindrical
+dynamics. No integration is required and the control is uniquely determined by
+the trajectory shape.
+
+In this work the basis functions $B_i$ are those of a clamped B-spline of
+degree $n$. On each knot span the shaped coordinates are polynomials of
+degree $n$ and can be converted exactly into Bernstein form using a B-spline
+extraction matrix. This local Bernstein representation is subsequently used
+to construct polynomial products, integrals, and convex-hull bounds.
+
+Substituting Eq.~\eqref{eq:shaping} into Problem~\eqref{prob:main} gives the
+finite-dimensional problem
+\begin{mini}
+	{\mathbf{C}}
+	{J(\mathbf{C})}
+	{\label{prob:shaped}}{}
+	\addConstraint{\mathbf{q}(0;\mathbf C)=\mathbf{q}_0,\qquad
+		\mathbf{q}'(0;\mathbf C)=\mathbf{q}'_0}
+	\addConstraint{\mathbf{q}(1;\mathbf C)=\mathbf{q}_f,\qquad
+		\mathbf{q}'(1;\mathbf C)=\mathbf{q}'_f}
+	\addConstraint{\lVert\mathbf{u}(\tau;\mathbf C)\rVert\leq u_{\max},
+		\qquad\tau\in[0,1],}
+\end{mini}
+where $\mathbf{C}=[\mathbf{c}^T_1,\hdots,\mathbf{c}^T_{n_c}]^T$ stacks all the
+control points, which are the decision variables of the problem. The dynamics
+are satisfied identically through
+Eq.~\eqref{eq:flatness2}, and $\mathbf q'_0$, $\mathbf q'_f$ are the
+cylindrical rates obtained from $\mathbf v_0$ and $\mathbf v_f$ and expressed
+in the curve parameter. Two ingredients remain to be made algebraic: the
+rendezvous conditions, which are linear in the control points and are
+eliminated in Section~\ref{sec:rendezvous}, and the thrust constraint, which
+is semi-infinite and is the subject of Section~\ref{sec:thrust} and of the
+remainder of the paper.
+
+\subsubsection{Rendezvous conditions}
+\label{sec:rendezvous}
+
+For a clamped B-spline of degree $n$, only the first basis function is
+nonzero at $\tau=0$ and only the first two have a nonzero derivative there;
+the same holds at $\tau=1$ for the last two. The endpoint values and rates
+therefore determine the two control points adjacent to each end,
+\begin{equation}
+	\mathbf{c}_1=\mathbf{q}_0,\qquad
+	\mathbf{c}_2=\frac{\mathbf{q}'_0-B_1'(0)\,\mathbf{c}_1}{B_2'(0)},\qquad
+	\mathbf{c}_{n_c}=\mathbf{q}_f,\qquad
+	\mathbf{c}_{n_c-1}
+	=\frac{\mathbf{q}'_f-B_{n_c}'(1)\,\mathbf{c}_{n_c}}{B_{n_c-1}'(1)}.
+	\label{eq:clamped-elimination}
+\end{equation}
+The remaining $n_c-4$ control points of each coordinate are the free
+variables of Problem~\eqref{prob:shaped}, and the rendezvous conditions are
+satisfied exactly by construction. The number of revolutions enters only
+through the unwrapped terminal longitude $\theta_f$. When the shaped
+quantities are not the cylindrical coordinates themselves but primitives
+related to them by a nonlinear map, as in Section~\ref{sec:enforcement}, the
+prescribed endpoint values and rates are first transformed to the primitives
+and Eq.~\eqref{eq:clamped-elimination} is applied to those.
+
+\subsubsection{Thrust constraint}
+\label{sec:thrust}
+
+Let us focus on the control acceleration constraint by expanding the shaped
+control acceleration of Eq.~\eqref{eq:flatness2},
+\begin{equation}
+	\dfrac{1}{W}\sqrt{P^2_\rho+P^2_\theta+P^2_z}\leq u_{\max}.
+\end{equation}
+To simplify the previous expression let us square both sides of the
+constraint and multiply the resulting expression by $W^2$,
+\begin{equation}
+	P^2_\rho+P^2_\theta+P^2_z \leq W^2 u^2_{\max},
+	\label{eq:squared-thrust-constraint}
+\end{equation}
+where the main obstruction to applying polynomial positivity techniques is
+that in cylindrical coordinates $W=r^3=(\rho^2+z^2)^{3/2}$ is not a
+polynomial. Note that $W$ also appears in $P_\rho$, $P_\theta$ and $P_z$.
+Enforcing the inequality at a finite set of nodes is the usual remedy, but it
+leaves the constraint unverified between nodes. Section~\ref{sec:enforcement}
+removes the obstruction and enforces the bound on the whole trajectory.
+
+\section{Analytical enforcement of the thrust constraint}
+\label{sec:enforcement}
+
+\subsection{Levi-Civita map of the meridional plane}
+\label{sec:pythagorean}
+
+The obstruction identified in Section~\ref{sec:thrust} is the square root in
+$r=\sqrt{\rho^2+z^2}$ which arises when using cylindrical coordinates. For a
+fixed $\theta$, the coordinates $(\rho,z)$ describe the spacecraft position
+in the meridional plane. To circumvent the obstruction we use the Levi-Civita
+map of the meridional plane: writing $\rho+\mathrm{i}z$ as the square of a
+complex primitive $w=p+\mathrm{i}q$, the distance becomes
+$r=|w^2|=|w|^2$, which is free of square roots. In components, the
+Levi-Civita map of the $\rho z$ plane is
+\begin{equation}
+	\begin{aligned}
+		\rho &= p^2-q^2,\\
+		z &= 2pq,
+	\end{aligned}
+	\label{eq:levi-civita-map}
+\end{equation}
+and the heliocentric distance is
+\begin{equation}
+	r = \sqrt{\rho^2+z^2}=\sqrt{(p^2+q^2)^2}=p^2+q^2.
+	\label{eq:levi-civita-radius}
+\end{equation}
+Then, we switch from the cylindrical coordinates $(\rho,\>\theta,\> z)$ to the
+new set of primitives $(p,\>q,\>\theta)$. The primitives $p$ and $q$ encode
+the position within the meridional plane. The map is two-to-one, since
+$(p,q)$ and $(-p,-q)$ give the same $(\rho,z)$. The ambiguity is removed by a
+single sign choice: the cylindrical description requires $\rho>0$, hence
+$p^2>q^2$, so $p$ never vanishes along the trajectory and keeps its sign.
+Imposing $p>0$ at the departure point therefore fixes the branch on the
+whole arc, and the bound $\rho\geq\rho_{\min}>0$ of the optimization problem
+guarantees it during the solution. The longitude $\theta$ is retained as a
+third primitive, which keeps the number of revolutions an endpoint value as
+in Section~\ref{sec:rendezvous}.
+
+If $p$ and $q$ are polynomials of degree $n$ in the curve parameter, it
+follows from Eq.~\eqref{eq:levi-civita-radius} that $r$ is a polynomial of
+degree $2n$ and $W=r^3$ is a polynomial of degree $6n$.
+
+\subsection{Physical-time thrust certificate}
+\label{sec:time-certificate}
+
+With the Levi-Civita map of the meridional plane, the thrust constraint
+becomes polynomial whenever the primitives are shaped with polynomial basis
+functions. The time derivatives of $\rho$ and $z$ are
+\begin{equation}
+	\begin{alignedat}{2}
+		\dot \rho
+		&=2(p\dot p-q\dot q),
+		&\qquad
+		\dot z
+		&=2(\dot p\,q+p\dot q),
+		\\
+		\ddot \rho
+		&=2\left(\dot p^{2}+p\ddot p
+		-\dot q^{2}-q\ddot q\right),
+		&\qquad
+		\ddot z
+		&=2\left(\ddot p\,q+2\dot p\dot q+p\ddot q\right).
+	\end{alignedat}
+	\label{eq:levi-civita-time-derivatives}
+\end{equation}
+Let us define the kinematic acceleration terms
+\begin{equation}
+	\begin{aligned}
+		\mathcal A_\rho
+		&=\ddot{\rho}-\rho\dot{\theta}^2=2\left(\dot p^{2}+p\ddot p
+		-\dot q^{2}-q\ddot q\right)-(p^2-q^2)\dot{\theta}^2,\\
+		\mathcal A_\theta
+		&=2\dot{\rho}\dot{\theta}+\rho\ddot{\theta}=4(p\dot p-q\dot q)\dot{\theta}+(p^2-q^2)\ddot{\theta},\\
+		\mathcal A_z
+		&=\ddot{z}=2\left(\ddot p\,q+2\dot p\dot q+p\ddot q\right),
+	\end{aligned}
+	\label{eq:time-kinematic-terms}
+\end{equation}
+and the cubic heliocentric distance $W=r^3$ as
+\begin{equation}
+	W = (p^2+q^2)^3=p^6+3p^4q^2+3p^2q^4+q^6.
+	\label{eq:levi-civita-weight}
+\end{equation}
+Then, the thrust constraint of Eq.~\eqref{eq:squared-thrust-constraint} can
+be written in the meridional Levi-Civita primitives and the heliocentric
+longitude as
+\begin{equation}
+	\underbrace{
+		\left(W\mathcal A_\rho+\mu (p^2-q^2)\right)^2
+	}_{P_\rho^{2}}
+	+
+	\underbrace{
+		\left(W\mathcal A_\theta\right)^2
+	}_{P_\theta^{2}}
+	+
+	\underbrace{
+		\left(W\mathcal A_z+2\mu pq\right)^2
+	}_{P_z^{2}}
+	\leq
+	W^2\,u_{\max}^2.
+	\label{eq:pythagorean-time-certificate}
+\end{equation}
+Time derivatives are taken with respect to the normalized time $\tau$, which
+only introduces powers of the fixed transfer time $T$ and does not change the
+polynomial degrees. If $p$, $q$, and $\theta$ are degree-$n$ polynomials on
+each span, the degrees of the terms in
+Eq.~\eqref{eq:pythagorean-time-certificate} are given in
+Table~\ref{tab:thrust-certificate-degrees}.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Polynomial degrees of the squared thrust terms for degree-$n$
+		Levi-Civita primitives in physical time.}
+	\label{tab:thrust-certificate-degrees}
+	\begin{tabular}{lc}
+		\toprule
+		\textbf{Polynomial term} & \textbf{Degree} \\
+		\midrule
+		$P_\rho^{2}$   & $20n-4$ \\
+		$P_\theta^{2}$ & $18n-4$ \\
+		$P_z^{2}$      & $16n-4$ \\
+		$W^2=r^6$      & $12n$   \\
+		\midrule
+		$W^2u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$
+		& $20n-4$ \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+Requiring every Bernstein coefficient of the degree-$(20n-4)$ polynomial
+$W^2u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$ to be nonnegative on each span
+is a sufficient condition for the thrust constraint and constitutes the
+physical-time baseline of this work. Its degree, however, makes the condition
+expensive and ill-conditioned already for moderate $n$, which motivates the
+two developments that follow: a change of independent variable that lowers
+the degree of the numerators below that of $W$
+(Section~\ref{sec:sundman}), and a convex-hull condition that never forms the
+squared polynomial (Section~\ref{sec:hull}).
+
+\subsection{Sundman transformation}
+\label{sec:sundman}
+
+The Sundman transformation reduces the polynomial degree that arises when the
+primitives are shaped in physical time $t$. It replaces $t$ with the parameter
+$s$ through
+\begin{equation}
+	\mathrm{d}t=r\,\mathrm{d}s,
+	\label{eq:sundman-transformation}
+\end{equation}
+where $r>0$. Denoting physical-time derivatives with dots and derivatives
+with respect to the Sundman parameter $s$ with primes, the chain rule gives
+\begin{equation}
+	\dot f=\frac{f'}{r},
+	\qquad
+	\ddot f
+	=\frac{1}{r}\left(\frac{f'}{r}\right)'
+	=\frac{rf''-r'f'}{r^3}.
+	\label{eq:sundman-chain-rule}
+\end{equation}
+The second derivative carries the same denominator $r^3$ as the gravity
+term, so no further multiplication by $W=r^3$ is needed to clear the control.
+In cylindrical components, substituting Eq.~\eqref{eq:sundman-chain-rule}
+into Eq.~\eqref{eq:flatness2} gives
+\begin{equation}
+	\mathbf{u}=\dfrac{1}{W}\begin{bmatrix}
+		r\rho''-r'\rho'-r\rho\,(\theta')^2+\mu\rho\\
+		\rho\,(r\theta''-r'\theta')+2r\rho'\theta'\\
+		rz''-r'z'+\mu z
+	\end{bmatrix},
+	\label{eq:sundman-control}
+\end{equation}
+with the same $W=r^3$ as before. Each entry equals $r^3$ times the physical
+kinematic acceleration of Eq.~\eqref{eq:time-kinematic-terms} plus the
+gravity numerator, but the factor $r^3$ is now supplied by the chain rule
+instead of being multiplied in. Accordingly, in the Sundman parameter the
+kinematic terms are redefined as $r^3$ times the physical ones,
+$\mathcal A_\rho=r^3(\ddot\rho-\rho\dot\theta^2)$,
+$\mathcal A_\theta=r^3(2\dot\rho\dot\theta+\rho\ddot\theta)$ and
+$\mathcal A_z=r^3\ddot z$, which in the Levi-Civita primitives read
+\begin{equation}
+	\begin{aligned}
+		\mathcal A_\rho
+		&=r\rho''-r'\rho'-r\rho\,(\theta')^2
+		=2r\left(pp''-qq''\right)
+		-\rho\left[2\left(p'^2+q'^2\right)+r\,(\theta')^2\right],\\
+		\mathcal A_\theta
+		&=\rho\,(r\theta''-r'\theta')+2r\rho'\theta'
+		= r\rho\,\theta''
+		+2\left[pp'\left(p^2+3q^2\right)-qq'\left(3p^2+q^2\right)\right]\theta',\\
+		\mathcal A_z
+		&=rz''-r'z'
+		= 2r\left(qp''+pq''\right)-2z\left(p'^2+q'^2\right),
+	\end{aligned}
+	\label{eq:sundman-kinematic-pq}
+\end{equation}
+with $r=p^2+q^2$, $\rho=p^2-q^2$ and $z=2pq$. The thrust constraint of
+Eq.~\eqref{eq:squared-thrust-constraint} becomes
+\begin{equation}
+	\underbrace{
+		\left(\mathcal A_\rho+\mu (p^2-q^2)\right)^2
+	}_{P_\rho^{2}}
+	+
+	\underbrace{
+		\mathcal A_\theta^{2}
+	}_{P_\theta^{2}}
+	+
+	\underbrace{
+		\left(\mathcal A_z+2\mu pq\right)^2
+	}_{P_z^{2}}
+	\leq
+	W^2\,u_{\max}^2.
+	\label{eq:sundman-certificate}
+\end{equation}
+Each numerator contains at most one factor of $r$ together with two
+derivatives, so $P_\rho$, $P_\theta$ and $P_z$ have degrees $6n-2$, $5n-2$
+and $4n-2$, all below $\deg W=6n$. The squared constraint of
+Eq.~\eqref{eq:sundman-certificate} has degree $12n$ instead of the $20n-4$
+of Eq.~\eqref{eq:pythagorean-time-certificate}.
+
+The change of independent variable alters the curve parameter of
+Section~\ref{sec:shaping}. The primitives are now shaped in the normalized
+Sundman arc $\sigma=(s-s_0)/S\in[0,1]$, where the total arc
+$S=s_f-s_0$ is unknown a priori and becomes an additional decision variable;
+derivatives with respect to $s$ are those with respect to $\sigma$ divided by
+$S$. The rendezvous conditions of Section~\ref{sec:rendezvous} are imposed
+on the primitives in $\sigma$. To preserve the prescribed physical endpoint
+velocities, the primitive endpoint derivatives must satisfy
+\begin{equation}
+	\frac{\mathrm{d}f}{\mathrm{d}\sigma}=S\,r\,\dot f
+	\label{eq:sundman-endpoint-rates}
+\end{equation}
+for every primitive $f$, where $r$ is known at the endpoints, so the
+eliminated control points of Eq.~\eqref{eq:clamped-elimination} are affine
+in $S$. The prescribed time of flight is enforced through
+\begin{equation}
+	T=t_f-t_0
+	=\int_{s_0}^{s_f}r\,\mathrm{d}s
+	=S\int_{0}^{1}r(\sigma)\,\mathrm{d}\sigma,
+	\label{eq:normalized-sundman-time-of-flight}
+\end{equation}
+whose integrand is polynomial on each span, so the constraint is polynomial
+in the control points and linear in $S$.
+
+\subsection{Rational B\'ezier convex-hull enforcement}
+\label{sec:hull}
+
+Although Eq.~\eqref{eq:sundman-thrust-constraint} has a lower
+degree than its physical-time counterpart, directly constructing
+its squared polynomial still produces a degree-$18n$ constraint.
+Instead, the cylindrical control-component vector is represented
+as a rational B\'ezier curve.
+
+On each knot span, let $\sigma\in[0,1]$ denote the local affine
+coordinate. The numerator components and denominator are
+degree-elevated to the common degree
+\begin{equation}
+	m=\deg W=3\deg r,
+\end{equation}
+which is $9n$ for the scaled map and $6n$ for the Levi-Civita and KS
+maps. Degree elevation preserves the represented functions exactly.
+Their Bernstein representations are
+\begin{equation}
+	\mathbf P(\sigma)
+	=\sum_{i=0}^{m}B_i^m(\sigma)\mathbf P_i,
+	\qquad
+	W(\sigma)
+	=\sum_{i=0}^{m}B_i^m(\sigma)W_i,
+\end{equation}
+where
+\begin{equation}
+	\mathbf P_i
+	=(P_{\rho,i},P_{\theta,i},P_{z,i})^\mathsf{T},
+	\qquad
+	B_i^m(\sigma)
+	=\binom{m}{i}\sigma^i(1-\sigma)^{m-i}.
+\end{equation}
+The coefficients $\mathbf P_i$ incorporate the derivative
+scaling associated with the mapping from the Sundman parameter
+$s$ to the local coordinate $\sigma$.
+
+If every $W_i>0$, the control can be written as
+\begin{equation}
+	\mathbf u(\sigma)
+	=\frac{\mathbf P(\sigma)}{W(\sigma)}
+	=\sum_{i=0}^{m}\lambda_i(\sigma)\mathbf q_i,
+	\qquad
+	\mathbf q_i=\frac{\mathbf P_i}{W_i},
+	\qquad
+	\lambda_i(\sigma)
+	=\frac{B_i^m(\sigma)W_i}{W(\sigma)}.
+\end{equation}
+Because $\lambda_i(\sigma)\geq0$ and
+$\sum_i\lambda_i(\sigma)=1$, the complete rational curve lies
+inside the convex hull of the rational control points
+$\mathbf q_i$. In particular,
+\begin{equation}
+	\|\mathbf u(\sigma)\|_2
+	\leq \sum_{i=0}^{m}\lambda_i(\sigma)\|\mathbf q_i\|_2
+	\leq \max_{0\leq i\leq m}\|\mathbf q_i\|_2.
+\end{equation}
+Since the Euclidean ball of radius $u_{\max}$ is convex,
+the coefficient-wise conditions
+\begin{equation}
+	P_{\rho,i}^2+P_{\theta,i}^2+P_{z,i}^2
+	\leq u_{\max}^2W_i^2,
+	\qquad i=0,\ldots,m,
+	\label{eq:rational-hull-constraints}
+\end{equation}
+are sufficient to guarantee
+$\|\mathbf u(\sigma)\|_2\leq u_{\max}$ throughout the span.
+
+Weight positivity is enforced through the Bernstein
+coefficients of the heliocentric distance $r=hC$.
+Writing
+\begin{equation}
+	r(\sigma)=\sum_{j=0}^{d}B_j^d(\sigma)r_j,
+	\qquad d=\deg r,
+\end{equation}
+we impose $r_j\geq r_{\min}>0$. The coefficients of
+$W=r^3$, of degree $3d=m$, are then
+\begin{equation}
+	W_i
+	=\sum_{\substack{a+b+c=i\\0\leq a,b,c\leq d}}
+	\frac{\binom{d}{a}\binom{d}{b}\binom{d}{c}}
+	{\binom{3d}{i}}\,
+	r_a r_b r_c.
+\end{equation}
+The factors multiplying the products are nonnegative and sum
+to unity for each $i$. Consequently,
+\begin{equation}
+	W_i\geq r_{\min}^3>0.
+\end{equation}
+Thus, positive lower bounds on the radius coefficients ensure
+both a nonsingular Sundman time map and positive rational
+weights. Pointwise positivity of $r$ alone would not imply
+positivity of all its Bernstein coefficients.
+
+The rational convex-hull condition introduces $m+1$ smooth
+scalar thrust inequalities per span without forming the
+degree-$18n$ squared polynomial. These inequalities involve
+squares of individual coefficients; they do not require
+constructing the Bernstein coefficients of
+$\mathbf P^\mathsf{T}\mathbf P$. By comparison, enforcing
+nonnegativity of every Bernstein coefficient of
+\begin{equation}
+	F(\sigma)
+	=u_{\max}^2W(\sigma)^2
+	-\mathbf P(\sigma)^\mathsf{T}\mathbf P(\sigma)
+\end{equation}
+requires $2m+1$ coefficient inequalities per span.
+Both constructions provide sufficient conditions, but neither
+is generally necessary, and neither generally implies the other.
+
+The rational hull condition is conservative: the curve may
+satisfy the thrust limit even when a rational control point lies
+outside the admissible ball. This conservatism can be reduced
+by subdividing each span. Applying de Casteljau subdivision
+jointly to $\mathbf P$ and $W$ preserves the rational curve
+exactly and produces smaller local convex hulls with positive
+weights. After $k$ levels of uniform binary subdivision,
+each original span has $2^k$ subspans, giving
+\begin{equation}
+	N_{\mathrm{hull}}=2^k(m+1)
+\end{equation}
+scalar thrust inequalities per original span, before removing
+any duplicate endpoint conditions. The polynomial degree
+remains unchanged.
+
+For comparison, grid-based enforcement applies the thrust
+limit only at a finite set of points. It generally admits a
+larger feasible set but does not guarantee the bound between
+grid nodes. The rational hull supplies a continuous bound
+throughout each span when the coefficient inequalities and
+weight-positivity conditions hold.
+
+Finally, the Sundman and physical-time descriptions are
+equivalent at the continuous level whenever $r>0$ and the
+boundary conditions and time of flight are transformed
+consistently. However, finite-dimensional spline spaces in
+different independent variables generally produce different
+admissible shaping families for a fixed degree and number of
+control points. The Sundman formulation therefore constitutes
+a distinct trajectory parameterization, in addition to reducing
+the algebraic degree of the thrust enforcement.
+
+\subsection{Shaping families}
+\label{sec:shaping-families}
+
+Each map of Section~\ref{sec:pythagorean}, combined with the Sundman
+variable of Section~\ref{sec:sundman} and the hull condition of
+Section~\ref{sec:hull}, defines a shaping family. The three families share
+the exact Bernstein time-of-flight constraint, the analytical elimination of
+the endpoint control points, and the coefficient-wise inequalities of
+Eq.~\eqref{eq:rational-hull-constraints}; they differ in the degree of the
+hull, in the endpoint formulas, and in the way the revolution count is
+prescribed. Since the maps are nonlinear, the families span different sets
+of trajectories for a given degree and number of control points and are not
+interchangeable.
+
+\subsubsection{Levi-Civita family}
+
+With primitives $\mathbf p=[p,\,q,\,\theta]^T$ and the map of
+Eq.~\eqref{eq:levi-civita-map}, the numerators are those of
+Eq.~\eqref{eq:sundman-numerators} with $r=p^2+q^2$. Since $\rho$, $z$, and
+$r$ have degree $2n$, the numerator degrees are $6n-2$, $5n-2$, and $4n-2$,
+$W$ has degree $6n$, and the hull is formed at $m=6n$ with $6n+1$
+inequalities per span. The endpoint values follow from
+\begin{equation}
+	p=\sqrt{r}\cos\left(\frac{\phi}{2}\right),\qquad
+	q=\sqrt{r}\sin\left(\frac{\phi}{2}\right),
+	\label{eq:levi-civita-endpoints}
+\end{equation}
+and the endpoint rates by differentiation, with $f'=r\dot f$. The
+coefficient bounds $r_j\geq r_{\min}$ and $\rho_i\geq\rho_{\min}$ are imposed
+on polynomials of degree $2n$. This is the smallest family: three
+primitives, no gauge freedom, and the lowest hull degree among the
+meridional maps.
+
+\subsubsection{Scaled Levi-Civita family}
+
+With primitives $\mathbf p=[h,\,p,\,q,\,\theta]^T$ and the map of
+Eq.~\eqref{eq:pythagorean-map}, substituting $\rho=hA$, $z=hB$, and $r=hC$
+into Eq.~\eqref{eq:sundman-numerators} and expanding gives
+\begin{equation}
+	\begin{aligned}
+		P_\rho&=\mathcal D_\rho-h^2CA(\theta')^2+\mu hA,\\
+		P_\theta&=h^2CA\theta''+\left[hh'CA+h^2(2CA'-AC')\right]\theta',\\
+		P_z&=\mathcal D_z+\mu hB,
+	\end{aligned}
+	\label{eq:scaled-numerators}
+\end{equation}
+with
+\begin{equation}
+	\begin{aligned}
+		\mathcal D_\rho
+		&=hC(h''A+2h'A'+hA'')
+		-(h'C+hC')(h'A+hA'),\\
+		\mathcal D_z
+		&=hC(h''B+2h'B'+hB'')
+		-(h'C+hC')(h'B+hB'),
+	\end{aligned}
+\end{equation}
+where the Sundman derivatives of $A$, $B$, and $C$ have the same form as
+their physical-time derivatives in Section~\ref{sec:pythagorean}. The
+numerators have degrees $8n-2$, $7n-2$, and $6n-2$, $W$ has degree $9n$,
+and the hull is formed at $m=9n$ with $9n+1$ inequalities per span. The
+gauge freedom is fixed at the endpoints by
+\begin{equation}
+	h=r,\qquad
+	p=\cos\left(\frac{\phi}{2}\right),\qquad
+	q=\sin\left(\frac{\phi}{2}\right),
+	\label{eq:pythagorean-endpoint-normalization}
+\end{equation}
+where $\phi$ is the ecliptic latitude, so that $p^2+q^2=1$ and the prescribed
+cylindrical position is recovered exactly; differentiating
+Eq.~\eqref{eq:pythagorean-endpoint-normalization} provides the primitive
+endpoint rates. The normalization is imposed only at the endpoints, and
+$p^2+q^2$ is not constrained to unity in the interior. Besides $r_j\geq r_{\min}$, the Bernstein coefficients of
+$\rho=hA$, of degree $3n$, are bounded below by $\rho_{\min}>0$ so that the
+cylindrical longitude remains well defined; note that $\rho=h(p^2-q^2)$ is
+not sign definite by construction.
+
+\subsubsection{Kustaanheimo--Stiefel family}
+
+With primitives $\mathbf w$ and the map of Eq.~\eqref{eq:ks-map}, the
+control is shaped in Cartesian components through
+Eq.~\eqref{eq:sundman-cartesian-numerators}, and the centripetal and
+Coriolis terms of the cylindrical description disappear. All three
+numerators have degree $4n-2$, $W$ has degree $6n$, and the hull is formed
+at $m=6n$ with $6n+1$ inequalities per span. No bound on $\rho$ is needed,
+since the longitude is not a primitive; only $r_j\geq r_{\min}$ is imposed on
+the degree-$2n$ coefficients of $r$.
+
+Two features distinguish this family. First, as noted in
+Section~\ref{sec:pythagorean}, every position corresponds to a circle
+(fibre) of KS points, generated by the tangent $\mathbf t(\mathbf w)=[-w_4,\,w_3,\,-w_2,\,w_1]^T$ along which
+$\mathbf x$ is invariant. Writing $\mathbf x=\mathbf L(\mathbf w)\mathbf w$
+with the KS matrix $\mathbf L$, the position rate satisfies
+$\dot{\mathbf x}=2\mathbf L(\mathbf w)\dot{\mathbf w}$ and the primitive
+rate consistent with a prescribed velocity $\mathbf v$ is
+\begin{equation}
+	\dot{\mathbf w}
+	=\frac{\mathbf L(\mathbf w)^T\mathbf v}{2r}
+	+\lambda\,\mathbf t(\mathbf w),
+	\label{eq:ks-rate}
+\end{equation}
+where $\lambda$ is arbitrary. The initial point is fixed on its fibre, while
+the terminal fibre angle and the fibre components $\lambda$ of both endpoint
+rates are additional decision variables that leave the Cartesian rendezvous
+conditions untouched. Second, the number of revolutions is no longer an
+endpoint value. It is carried by a continuous lift of the seed trajectory, in
+which each sampled position is mapped to the point of its fibre closest to
+the previous one. To make the count strict, the longitude is factored as
+\begin{equation}
+	x+\mathrm{i}y=\mathcal A\,\mathcal B,\qquad
+	\mathcal A=(w_1+w_3)+\mathrm{i}\,(w_2+w_4),\qquad
+	\mathcal B=(w_1-w_3)+\mathrm{i}\,(w_2-w_4),
+	\label{eq:ks-factors}
+\end{equation}
+so that $\theta=\arg\mathcal A+\arg\mathcal B$ and $\rho=|\mathcal A||\mathcal B|$.
+Both factors are linear in the primitives. Each span is subdivided until the
+seed turns $\mathcal A$ and $\mathcal B$ by less than a prescribed sweep on
+every piece, and on each piece the Bernstein coefficients of the factor are
+confined to the half-plane
+\begin{equation}
+	\operatorname{Re}\left(\mathrm{e}^{-\mathrm{i}\alpha}\mathcal A_j\right)
+	\geq\delta>0,
+	\qquad j=0,\ldots,n,
+	\label{eq:ks-revolution-lock}
+\end{equation}
+with $\alpha$ the mean argument of the seed on that piece, and likewise for
+$\mathcal B$. These are linear inequalities in the control points. By the
+convex-hull property, the factor itself stays in the half-plane on the piece,
+so it can neither wind around the origin nor vanish. The swept longitude is
+thus fixed to that of the seed and the trajectory cannot cross the polar
+axis.
+
+\subsubsection{Summary}
+
+Table~\ref{tab:shaping-families} collects the polynomial degrees and the
+number of hull inequalities per span. The Levi-Civita and KS families reach
+the same hull degree, $6n$, with three and four primitives, respectively,
+whereas the scaled family pays for its extra primitive with a hull of
+degree $9n$. All families are enforced through the same rational hull
+condition; node-wise enforcement at a finite set of points is retained only as
+a reference for quantifying the conservatism of the hull. For the
+scaled family the physical-time certificate of
+Eq.~\eqref{eq:pythagorean-time-certificate} is also available, so that the
+Sundman and physical-time enforcement can be compared on the same
+primitives.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Implemented Pythagorean shaping families for degree-$n$
+		primitives in the Sundman parameter.}
+	\label{tab:shaping-families}
+	\begin{tabular}{lccccc}
+		\toprule
+		\textbf{Family} & \textbf{Primitives} & $\deg r$ & $\max\deg\mathbf P$
+		& $\deg W=m$ & \textbf{Rows per span} \\
+		\midrule
+		Levi-Civita        & $p,q,\theta$     & $2n$ & $6n-2$ & $6n$ & $6n+1$ \\
+		Scaled Levi-Civita & $h,p,q,\theta$   & $3n$ & $8n-2$ & $9n$ & $9n+1$ \\
+		KS             & $w_1,\ldots,w_4$ & $2n$ & $4n-2$ & $6n$ & $6n+1$ \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+
+
+\section{Numerical implementation}
+\label{sec:implementation}
+
+\subsection{Nonlinear program}
+
+On each family the decision variables are the interior control points of
+every primitive, the Sundman arc length $S$ that maps the spline parameter
+$\sigma\in[0,1]$ to $s=S\sigma$, and, in the minimum-peak problem, the squared
+bound $u_{\max}^2$. The control points adjacent to each clamped end are
+eliminated through Eq.~\eqref{eq:clamped-elimination}. Since the primitive
+Sundman rates are $f'=S\,r\dot f$ and $r$ is known at the endpoints, these
+control points are affine in $S$, so the elimination remains analytical when
+$S$ is free. The constraints are the hull inequalities of
+Eq.~\eqref{eq:rational-hull-constraints} on every subdivided block, the
+coefficient bounds $r_j\geq r_{\min}$ and, for the cylindrical families,
+$\rho_i\geq\rho_{\min}$, the time-of-flight equality of
+Eq.~\eqref{eq:normalized-sundman-time-of-flight}, which is bilinear in $S$ and
+the coefficients of $r$, and, for the KS family with the revolution lock, the
+linear half-plane inequalities of Eq.~\eqref{eq:ks-revolution-lock}. The
+hull inequalities are made dimensionless with a reference squared
+acceleration and the sixth power of the larger endpoint radius.
+
+In the minimum-peak problem the objective is $u_{\max}^2$, normalized by the
+hull bound of the seed trajectory. In the minimum-$\Delta V$ problem the
+objective is $S\int_0^1\lVert\mathbf u\rVert\,r\,\mathrm{d}\sigma$, evaluated
+by Gauss--Legendre quadrature on every span; the nonsmooth norm is replaced at
+each node by an auxiliary bound $\eta_k\geq\lVert\mathbf u_k\rVert$, so that
+the program stays smooth. A prescribed cap enters through the hull
+inequalities with fixed $u_{\max}$; without a cap no thrust inequality is
+imposed and the hull bound of the solution is reported a posteriori. A
+quadratic objective $S\int_0^1\lVert\mathbf u\rVert^2 r\,\mathrm{d}\sigma$
+with a fixed cap is also available. The program is assembled symbolically
+with CasADi and solved with IPOPT, with exact first and second derivatives
+obtained by algorithmic differentiation.
+
+\subsection{Seeding}
+
+All families are initialized from the same minimum-$\Delta V$ cylindrical
+B-spline solution in physical time. The seed trajectory is sampled, the
+Sundman parameter is obtained from $s(t)=\int\mathrm{d}t/r$, and the sampled
+path is lifted to the primitives of the family: by the half-angle relations
+for the cylindrical families and by the continuous fibre lift for the KS
+family. The primitive splines are then fitted in $\sigma$ by least squares
+with the endpoint values and rates matched exactly, and $S$ is taken from the
+time-of-flight identity. The peak variable is initialized at the hull bound
+of the fitted seed times a small factor, and the lifted seed also supplies
+the half-plane directions of the revolution lock. Because the seed is a
+minimum-$\Delta V$ shape, its hull bound is in general far above the
+minimum-peak optimum, and the solver is started from a feasible point whose
+thrust constraint is inactive.
+
+\subsection{Post-solve verification}
+
+Every returned solution is checked independently of the solver. The
+Bernstein coefficients of $\mathbf P$ and $W$ are recomputed from the control
+points, and the solution is accepted only if all weights are strictly
+positive, the hull residuals are nonnegative up to a small tolerance, the
+control norm sampled densely in $\sigma$ does not exceed the certified bound,
+the transfer time and the endpoint positions and velocities match the
+prescribed values, and the identity $r^2=\rho^2+z^2$ holds to roundoff. The
+reported peak acceleration is the hull bound of the returned control points,
+not the value of the IPOPT variable. The hull condition itself is exact, but
+the coefficients are evaluated in floating point and the active inequalities
+are satisfied only to the solver tolerance, so the achieved bound must be
+interpreted together with the actual constraint residuals; the checks above
+are consistency tests, not a formal interval certificate.
+
+\section{Numerical results}
+\label{sec:results}
+
+% TODO: lead paragraph: transfers (Mars, Mercury, ...), units, hardware.
+
+\subsection{Hull versus node-wise enforcement}
+
+% TODO: minimum-peak solve of one transfer with the hull condition and with
+% node-wise limiting at 15 and 25 nodes per span; sampled peak above the
+% nodal limit between nodes; figure hull_vs_grid.
+
+\subsection{Comparison of shaping families}
+
+% TODO: Levi-Civita, scaled Levi-Civita, KS (with and without the revolution lock)
+% on the same seeds; hull degree, rows per span, iterations, wall time,
+% failures; minimum-peak and capped minimum-Delta V.
+
+\subsection{Rendezvous transfers}
+
+% TODO: minimum-peak and Pareto results against the cylindrical B-spline and
+% hodographic benchmarks.
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+% TODO.
+
+\section*{CRediT authorship contribution statement}
+
+Julio Author: Conceptualization, Methodology, Software, Validation, Writing - original draft. Second Author: Supervision, Writing - review and editing.
+
+\section*{Declaration of competing interest}
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Data and code availability}
+
+The comparison scripts and generated CSV files are contained in the FASTTRANSFER repository used to prepare this manuscript. The principal scripts are \path{experiments/compare_gondelach_fig2_fig3_bspline10.py} and \path{experiments/plot_pareto_from_csv.py}.
+
+\section*{Acknowledgements}
+
+Funding, institutional support, and computational-resource acknowledgements will be added before submission.
+
+\bibliographystyle{cas-model2-names}
+\bibliography{cas-refs.bib}
+
+
+
+\end{document}

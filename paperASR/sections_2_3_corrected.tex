@@ -1,0 +1,422 @@
+\section{Shaping-based low-thrust interplanetary rendezvous}
+\label{sec:problem}
+
+\subsection{Low-thrust interplanetary rendezvous}
+\label{sec:continuous}
+
+This work focuses on the fixed-time rendezvous problem with
+low thrust. The transfer time and number of revolutions are fixed, and the goal
+is to minimize an objective function which depends on the control. Since the
+spacecraft mass is not included as a state variable, the control
+$\mathbf{u}$ represents thrust acceleration rather than thrust force. The
+trajectory is parameterized in cylindrical coordinates
+$\mathbf{q}=[\rho,\,\theta,\,z]^T$, where $\rho$ is the distance of the spacecraft projection
+onto the ecliptic plane from the Sun, $\theta$ is the ecliptic longitude, and
+$z$ is the displacement normal to the ecliptic. The heliocentric distance is $r=\sqrt{\rho^2+z^2}$. Using the cylindrical velocity $\mathbf{v}=[v_\rho,\,v_\theta,\,v_z]^T$, the
+low-thrust rendezvous problem is
+
+\begin{mini}
+	{\mathbf{u}(\cdot)}
+	{J(\mathbf{u}(\cdot))}
+	{\label{prob:main}}{}
+	\addConstraint{\dot{\rho}=v_\rho,\qquad\quad\>\>\>
+		\dot{v}_\rho=\frac{v_\theta^2}{\rho}-\frac{\mu\rho}{r^3}+u_\rho}
+	\addConstraint{\dot{\theta}=\frac{v_\theta}{\rho},\qquad\quad\>\>
+		\dot{v}_\theta=-\frac{v_\rho v_\theta}{\rho}+u_\theta}
+	\addConstraint{\dot{z}=v_z,\qquad\quad\>\>\>
+		\dot{v}_z=-\frac{\mu z}{r^3}+u_z}
+	\addConstraint{\mathbf{q}(t_0)=\mathbf{q}_0,\qquad
+		\mathbf{v}(t_0)=\mathbf{v}_0}
+	\addConstraint{\mathbf{q}(t_f)=\mathbf{q}_f,\qquad
+		\mathbf{v}(t_f)=\mathbf{v}_f}
+	\addConstraint{\lVert\mathbf{u}(t)\rVert\leq u_{\max},
+		\qquad t\in[t_0,t_f].}
+\end{mini}
+
+The boundary states are obtained from the ephemerides of the departure and
+target bodies at $t_0$ and $t_f$, respectively. The transfer time
+$T=t_f-t_0$ and the number of revolutions $N\in\mathbb{N}$ are fixed. The
+unwrapped terminal longitude is selected consistently with $N$, i.e., it
+differs from the physical terminal longitude by the required multiple of
+$2\pi$.
+
+Two objectives are considered. In the minimum-$\Delta V$ problem,
+$J=\Delta V=\int_{t_0}^{t_f}\lVert\mathbf{u}(t)\rVert\,\mathrm{d}t$ for a
+prescribed acceleration cap $u_{\max}$; solving it for a sequence of caps
+traces the $u_{\max}$--$\Delta V$ Pareto front, and when no cap is prescribed
+the path constraint is omitted and the peak acceleration is evaluated a
+posteriori. In the minimum-peak problem, $u_{\max}$ is itself a decision
+variable and $J=u_{\max}$, so the path constraint is active by construction.
+In both cases the path constraint must hold at every instant of the transfer,
+which is the difficulty addressed in this work.
+
+\subsection{Polynomial shaping as a finite-dimensional problem}
+\label{sec:shaping}
+
+Shaping methods parameterize the spacecraft trajectory with a set of basis
+functions. Some examples are Fourier series, B\'ezier curves or B-splines. By
+parameterizing the trajectory, the dynamics and the boundary conditions can be
+satisfied by design. In this work, polynomial shaping (e.g. B\'ezier curves,
+B-splines, etc.) is analyzed. Let us parameterize the cylindrical coordinates as
+\begin{equation}
+\mathbf{q}(\tau)=\sum^{n_c}_{i=1}\mathbf{c}_i B_i(\tau),\qquad\tau\in[0,1],
+\label{eq:shaping}
+\end{equation}
+where $B_i$ are polynomial basis functions, $\mathbf{c}_i$ are control points,
+and $\tau$ is the curve parameter. Throughout this section $\tau=(t-t_0)/T$ is
+the normalized time; Section~\ref{sec:sundman} replaces it by a normalized
+Sundman arc, and everything below carries over with the corresponding
+change of the endpoint rates. With that parameterization, the derivatives of the
+cylindrical coordinates are
+\begin{equation}
+\mathbf{q}'(\tau)=\sum^{n_c}_{i=1}\mathbf{c}_i B_i'(\tau),\quad\quad
+\mathbf{q}''(\tau)=\sum^{n_c}_{i=1}\mathbf{c}_i B_i''(\tau),
+\end{equation}
+where primes denote derivatives with respect to $\tau$, and the physical-time
+derivatives follow from the chain rule,
+$\dot{\mathbf q}=\mathbf q'/T$ and $\ddot{\mathbf q}=\mathbf q''/T^2$. Then,
+the required control acceleration $\mathbf{u}$ can be obtained from the inverse dynamics of
+Problem~\eqref{prob:main} as
+\begin{equation}
+	\mathbf{u}
+	=
+	\begin{bmatrix}
+		u_\rho\\
+		u_\theta\\
+		u_z
+	\end{bmatrix}
+	=
+	\dfrac{1}{r^3}\begin{bmatrix}
+		r^3(\ddot{\rho}-\rho\dot{\theta}^{2})+\mu\rho\\[1mm]
+		r^3(2\dot{\rho}\dot{\theta}+\rho\ddot{\theta})\\[1mm]
+		r^3\ddot{z}+\mu z
+	\end{bmatrix}=\dfrac{1}{W}
+	\begin{bmatrix}
+	P_\rho\\[1mm]
+	P_\theta\\[1mm]
+	P_z
+	\end{bmatrix},\qquad W=r^3,
+	\label{eq:flatness2}
+\end{equation}
+so that the control is a rational function of the shaped coordinates and
+their first two derivatives. This is the flatness property of the low-thrust cylindrical
+dynamics. No integration is required and the control is uniquely determined by
+the trajectory shape.
+
+In this work the basis functions $B_i$ are those of a clamped B-spline of
+degree $n$. On each knot span the shaped coordinates are polynomials of
+degree $n$ and can be converted exactly into Bernstein form using a B-spline
+extraction matrix. This local Bernstein representation is subsequently used
+to construct polynomial products, integrals, and convex-hull bounds.
+
+Substituting Eq.~\eqref{eq:shaping} into Problem~\eqref{prob:main} gives the
+finite-dimensional problem
+\begin{mini}
+	{\mathbf{C}}
+	{J(\mathbf{C})}
+	{\label{prob:shaped}}{}
+	\addConstraint{\mathbf{q}(0;\mathbf C)=\mathbf{q}_0,\qquad
+		\mathbf{q}'(0;\mathbf C)=\mathbf{q}'_0}
+	\addConstraint{\mathbf{q}(1;\mathbf C)=\mathbf{q}_f,\qquad
+		\mathbf{q}'(1;\mathbf C)=\mathbf{q}'_f}
+	\addConstraint{\lVert\mathbf{u}(\tau;\mathbf C)\rVert\leq u_{\max},
+		\qquad\tau\in[0,1],}
+\end{mini}
+where $\mathbf{C}=[\mathbf{c}^T_1,\hdots,\mathbf{c}^T_{n_c}]^T$ stacks all the
+control points, which are the decision variables of the problem. The dynamics
+are satisfied identically through
+Eq.~\eqref{eq:flatness2}, and $\mathbf q'_0$, $\mathbf q'_f$ are the
+cylindrical rates obtained from $\mathbf v_0$ and $\mathbf v_f$ and expressed
+in the curve parameter. Two ingredients remain to be made algebraic: the
+rendezvous conditions, which are linear in the control points and are
+eliminated in Section~\ref{sec:rendezvous}, and the thrust constraint, which
+is semi-infinite and is the subject of Section~\ref{sec:thrust} and of the
+remainder of the paper.
+
+\subsubsection{Rendezvous conditions}
+\label{sec:rendezvous}
+
+For a clamped B-spline of degree $n$, only the first basis function is
+nonzero at $\tau=0$ and only the first two have a nonzero derivative there;
+the same holds at $\tau=1$ for the last two. The endpoint values and rates
+therefore determine the two control points adjacent to each end,
+\begin{equation}
+	\mathbf{c}_1=\mathbf{q}_0,\qquad
+	\mathbf{c}_2=\frac{\mathbf{q}'_0-B_1'(0)\,\mathbf{c}_1}{B_2'(0)},\qquad
+	\mathbf{c}_{n_c}=\mathbf{q}_f,\qquad
+	\mathbf{c}_{n_c-1}
+	=\frac{\mathbf{q}'_f-B_{n_c}'(1)\,\mathbf{c}_{n_c}}{B_{n_c-1}'(1)}.
+	\label{eq:clamped-elimination}
+\end{equation}
+The remaining $n_c-4$ control points of each coordinate are the free
+variables of Problem~\eqref{prob:shaped}, and the rendezvous conditions are
+satisfied exactly by construction. The number of revolutions enters only
+through the unwrapped terminal longitude $\theta_f$. When the shaped
+quantities are not the cylindrical coordinates themselves but primitives
+related to them by a nonlinear map, as in Section~\ref{sec:enforcement}, the
+prescribed endpoint values and rates are first transformed to the primitives
+and Eq.~\eqref{eq:clamped-elimination} is applied to those.
+
+\subsubsection{Thrust constraint}
+\label{sec:thrust}
+
+Let us focus on the control acceleration constraint by expanding the shaped
+control acceleration of Eq.~\eqref{eq:flatness2},
+\begin{equation}
+\dfrac{1}{W}\sqrt{P^2_\rho+P^2_\theta+P^2_z}\leq u_{\max}.
+\end{equation}
+To simplify the previous expression let us square both sides of the
+constraint and multiply the resulting expression by $W^2$,
+\begin{equation}
+P^2_\rho+P^2_\theta+P^2_z \leq W^2 u^2_{\max},
+\label{eq:squared-thrust-constraint}
+\end{equation}
+where the main obstruction to applying polynomial positivity techniques is
+that in cylindrical coordinates $W=r^3=(\rho^2+z^2)^{3/2}$ is not a
+polynomial. Note that $W$ also appears in $P_\rho$, $P_\theta$ and $P_z$.
+Enforcing the inequality at a finite set of nodes is the usual remedy, but it
+leaves the constraint unverified between nodes. Section~\ref{sec:enforcement}
+removes the obstruction and enforces the bound on the whole trajectory.
+
+\section{Analytical enforcement of the thrust constraint}
+\label{sec:enforcement}
+
+\subsection{Levi-Civita map of the meridional plane}
+\label{sec:pythagorean}
+
+The obstruction identified in Section~\ref{sec:thrust} is the square root in
+$r=\sqrt{\rho^2+z^2}$ which arises when using cylindrical coordinates. For a
+fixed $\theta$, the coordinates $(\rho,z)$ describe the spacecraft position
+in the meridional plane. To circumvent the obstruction we use the Levi-Civita
+map of the meridional plane: writing $\rho+\mathrm{i}z$ as the square of a
+complex primitive $w=p+\mathrm{i}q$, the distance becomes
+$r=|w^2|=|w|^2$, which is free of square roots. In components, the
+Levi-Civita map of the $\rho z$ plane is
+\begin{equation}
+\begin{aligned}
+\rho &= p^2-q^2,\\
+z &= 2pq,
+\end{aligned}
+\label{eq:levi-civita-map}
+\end{equation}
+and the heliocentric distance is
+\begin{equation}
+r = \sqrt{\rho^2+z^2}=\sqrt{(p^2+q^2)^2}=p^2+q^2.
+\label{eq:levi-civita-radius}
+\end{equation}
+Then, we switch from the cylindrical coordinates $(\rho,\>\theta,\> z)$ to the
+new set of primitives $(p,\>q,\>\theta)$. The primitives $p$ and $q$ encode
+the position within the meridional plane. The map is two-to-one, since
+$(p,q)$ and $(-p,-q)$ give the same $(\rho,z)$. The ambiguity is removed by a
+single sign choice: the cylindrical description requires $\rho>0$, hence
+$p^2>q^2$, so $p$ never vanishes along the trajectory and keeps its sign.
+Imposing $p>0$ at the departure point therefore fixes the branch on the
+whole arc, and the bound $\rho\geq\rho_{\min}>0$ of the optimization problem
+guarantees it during the solution. The longitude $\theta$ is retained as a
+third primitive, which keeps the number of revolutions an endpoint value as
+in Section~\ref{sec:rendezvous}.
+
+If $p$ and $q$ are polynomials of degree $n$ in the curve parameter, it
+follows from Eq.~\eqref{eq:levi-civita-radius} that $r$ is a polynomial of
+degree $2n$ and $W=r^3$ is a polynomial of degree $6n$.
+
+\subsection{Physical-time thrust certificate}
+\label{sec:time-certificate}
+
+With the Levi-Civita map of the meridional plane, the thrust constraint
+becomes polynomial whenever the primitives are shaped with polynomial basis
+functions. The time derivatives of $\rho$ and $z$ are
+\begin{equation}
+	\begin{alignedat}{2}
+		\dot \rho
+		&=2(p\dot p-q\dot q),
+		&\qquad
+		\dot z
+		&=2(\dot p\,q+p\dot q),
+		\\
+		\ddot \rho
+		&=2\left(\dot p^{2}+p\ddot p
+		-\dot q^{2}-q\ddot q\right),
+		&\qquad
+		\ddot z
+		&=2\left(\ddot p\,q+2\dot p\dot q+p\ddot q\right).
+	\end{alignedat}
+	\label{eq:levi-civita-time-derivatives}
+\end{equation}
+Let us define the kinematic acceleration terms
+\begin{equation}
+	\begin{aligned}
+		\mathcal A_\rho
+		&=\ddot{\rho}-\rho\dot{\theta}^2=2\left(\dot p^{2}+p\ddot p
+		-\dot q^{2}-q\ddot q\right)-(p^2-q^2)\dot{\theta}^2,\\
+		\mathcal A_\theta
+		&=2\dot{\rho}\dot{\theta}+\rho\ddot{\theta}=4(p\dot p-q\dot q)\dot{\theta}+(p^2-q^2)\ddot{\theta},\\
+		\mathcal A_z
+		&=\ddot{z}=2\left(\ddot p\,q+2\dot p\dot q+p\ddot q\right),
+	\end{aligned}
+	\label{eq:time-kinematic-terms}
+\end{equation}
+and the cubic heliocentric distance $W=r^3$ as
+\begin{equation}
+W = (p^2+q^2)^3=p^6+3p^4q^2+3p^2q^4+q^6.
+\label{eq:levi-civita-weight}
+\end{equation}
+Then, the thrust constraint of Eq.~\eqref{eq:squared-thrust-constraint} can
+be written in the meridional Levi-Civita primitives and the heliocentric
+longitude as
+\begin{equation}
+	\underbrace{
+		\left(W\mathcal A_\rho+\mu (p^2-q^2)\right)^2
+	}_{P_\rho^{2}}
+	+
+	\underbrace{
+		\left(W\mathcal A_\theta\right)^2
+	}_{P_\theta^{2}}
+	+
+	\underbrace{
+		\left(W\mathcal A_z+2\mu pq\right)^2
+	}_{P_z^{2}}
+	\leq
+	W^2\,u_{\max}^2.
+	\label{eq:pythagorean-time-certificate}
+\end{equation}
+Time derivatives are taken with respect to the normalized time $\tau$, which
+only introduces powers of the fixed transfer time $T$ and does not change the
+polynomial degrees. If $p$, $q$, and $\theta$ are degree-$n$ polynomials on
+each span, the degrees of the terms in
+Eq.~\eqref{eq:pythagorean-time-certificate} are given in
+Table~\ref{tab:thrust-certificate-degrees}.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Polynomial degrees of the squared thrust terms for degree-$n$
+		Levi-Civita primitives in physical time.}
+	\label{tab:thrust-certificate-degrees}
+	\begin{tabular}{lc}
+		\toprule
+		\textbf{Polynomial term} & \textbf{Degree} \\
+		\midrule
+		$P_\rho^{2}$   & $20n-4$ \\
+		$P_\theta^{2}$ & $18n-4$ \\
+		$P_z^{2}$      & $16n-4$ \\
+		$W^2=r^6$      & $12n$   \\
+		\midrule
+		$W^2u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$
+		& $20n-4$ \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+Requiring every Bernstein coefficient of the degree-$(20n-4)$ polynomial
+$W^2u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$ to be nonnegative on each span
+is a sufficient condition for the thrust constraint and constitutes the
+physical-time baseline of this work. Its degree, however, makes the condition
+expensive and ill-conditioned already for moderate $n$, which motivates the
+two developments that follow: a change of independent variable that lowers
+the degree of the numerators below that of $W$
+(Section~\ref{sec:sundman}), and a convex-hull condition that never forms the
+squared polynomial (Section~\ref{sec:hull}).
+
+\subsection{Sundman transformation}
+\label{sec:sundman}
+
+The Sundman transformation reduces the polynomial degree that arises when the
+primitives are shaped in physical time $t$. It replaces $t$ with the parameter
+$s$ through
+\begin{equation}
+	\mathrm{d}t=r\,\mathrm{d}s,
+	\label{eq:sundman-transformation}
+\end{equation}
+where $r>0$. Denoting physical-time derivatives with dots and derivatives
+with respect to the Sundman parameter $s$ with primes, the chain rule gives
+\begin{equation}
+	\dot f=\frac{f'}{r},
+	\qquad
+	\ddot f
+	=\frac{1}{r}\left(\frac{f'}{r}\right)'
+	=\frac{rf''-r'f'}{r^3}.
+	\label{eq:sundman-chain-rule}
+\end{equation}
+The second derivative carries the same denominator $r^3$ as the gravity
+term, so no further multiplication by $W=r^3$ is needed to clear the control.
+In cylindrical components, substituting Eq.~\eqref{eq:sundman-chain-rule}
+into Eq.~\eqref{eq:flatness2} gives
+\begin{equation}
+\mathbf{u}=\dfrac{1}{W}\begin{bmatrix}
+r\rho''-r'\rho'-r\rho\,(\theta')^2+\mu\rho\\
+\rho\,(r\theta''-r'\theta')+2r\rho'\theta'\\
+rz''-r'z'+\mu z
+\end{bmatrix},
+\label{eq:sundman-control}
+\end{equation}
+with the same $W=r^3$ as before. Each entry equals $r^3$ times the physical
+kinematic acceleration of Eq.~\eqref{eq:time-kinematic-terms} plus the
+gravity numerator, but the factor $r^3$ is now supplied by the chain rule
+instead of being multiplied in. Accordingly, in the Sundman parameter the
+kinematic terms are redefined as $r^3$ times the physical ones,
+$\mathcal A_\rho=r^3(\ddot\rho-\rho\dot\theta^2)$,
+$\mathcal A_\theta=r^3(2\dot\rho\dot\theta+\rho\ddot\theta)$ and
+$\mathcal A_z=r^3\ddot z$, which in the Levi-Civita primitives read
+\begin{equation}
+	\begin{aligned}
+		\mathcal A_\rho
+		&=r\rho''-r'\rho'-r\rho\,(\theta')^2
+		=2r\left(pp''-qq''\right)
+		-\rho\left[2\left(p'^2+q'^2\right)+r\,(\theta')^2\right],\\
+		\mathcal A_\theta
+		&=\rho\,(r\theta''-r'\theta')+2r\rho'\theta'
+		= r\rho\,\theta''
+		+2\left[pp'\left(p^2+3q^2\right)-qq'\left(3p^2+q^2\right)\right]\theta',\\
+		\mathcal A_z
+		&=rz''-r'z'
+		= 2r\left(qp''+pq''\right)-2z\left(p'^2+q'^2\right),
+	\end{aligned}
+	\label{eq:sundman-kinematic-pq}
+\end{equation}
+with $r=p^2+q^2$, $\rho=p^2-q^2$ and $z=2pq$. The thrust constraint of
+Eq.~\eqref{eq:squared-thrust-constraint} becomes
+\begin{equation}
+	\underbrace{
+		\left(\mathcal A_\rho+\mu (p^2-q^2)\right)^2
+	}_{P_\rho^{2}}
+	+
+	\underbrace{
+		\mathcal A_\theta^{2}
+	}_{P_\theta^{2}}
+	+
+	\underbrace{
+		\left(\mathcal A_z+2\mu pq\right)^2
+	}_{P_z^{2}}
+	\leq
+	W^2\,u_{\max}^2.
+	\label{eq:sundman-certificate}
+\end{equation}
+Each numerator contains at most one factor of $r$ together with two
+derivatives, so $P_\rho$, $P_\theta$ and $P_z$ have degrees $6n-2$, $5n-2$
+and $4n-2$, all below $\deg W=6n$. The squared constraint of
+Eq.~\eqref{eq:sundman-certificate} has degree $12n$ instead of the $20n-4$
+of Eq.~\eqref{eq:pythagorean-time-certificate}.
+
+The change of independent variable alters the curve parameter of
+Section~\ref{sec:shaping}. The primitives are now shaped in the normalized
+Sundman arc $\sigma=(s-s_0)/S\in[0,1]$, where the total arc
+$S=s_f-s_0$ is unknown a priori and becomes an additional decision variable;
+derivatives with respect to $s$ are those with respect to $\sigma$ divided by
+$S$. The rendezvous conditions of Section~\ref{sec:rendezvous} are imposed
+on the primitives in $\sigma$. To preserve the prescribed physical endpoint
+velocities, the primitive endpoint derivatives must satisfy
+\begin{equation}
+	\frac{\mathrm{d}f}{\mathrm{d}\sigma}=S\,r\,\dot f
+	\label{eq:sundman-endpoint-rates}
+\end{equation}
+for every primitive $f$, where $r$ is known at the endpoints, so the
+eliminated control points of Eq.~\eqref{eq:clamped-elimination} are affine
+in $S$. The prescribed time of flight is enforced through
+\begin{equation}
+	T=t_f-t_0
+	=\int_{s_0}^{s_f}r\,\mathrm{d}s
+	=S\int_{0}^{1}r(\sigma)\,\mathrm{d}\sigma,
+	\label{eq:normalized-sundman-time-of-flight}
+\end{equation}
+whose integrand is polynomial on each span, so the constraint is polynomial
+in the control points and linear in $S$.
