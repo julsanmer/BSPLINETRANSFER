@@ -1230,10 +1230,16 @@ def main() -> None:
     parser.add_argument("--fig3-xatol", type=float, default=1e-6)
     parser.add_argument("--fig3-fatol", type=float, default=1e-6)
     parser.add_argument("--fig3-simplex-scale", type=float, default=1e-2)
-    parser.add_argument("--fig3-optimizer", choices=["scipy", "oneill"], default="scipy")
+    parser.add_argument("--fig3-optimizer", choices=["scipy", "oneill", "ipopt"], default="scipy")
     parser.add_argument("--fig3-oneill-reqmin", type=float, default=1e-8)
     parser.add_argument("--fig3-oneill-konvge", type=int, default=10)
     parser.add_argument("--fig3-oneill-factorial-epsilon", type=float, default=1e-3)
+    parser.add_argument("--fig3-ipopt-tol", type=float, default=1e-8)
+    parser.add_argument("--fig3-ipopt-acceptable-tol", type=float, default=1e-6)
+    parser.add_argument("--fig3-ipopt-max-iter", type=int, default=1000)
+    parser.add_argument("--fig3-ipopt-linear-solver", default="mumps")
+    parser.add_argument("--fig3-ipopt-print-level", type=int, default=0)
+    parser.add_argument("--fig3-ipopt-dv-eps", type=float, default=1e-6)
     parser.add_argument(
         "--higher-basis",
         default=None,
@@ -1357,6 +1363,12 @@ def main() -> None:
         oneill_reqmin=args.fig3_oneill_reqmin,
         oneill_konvge=args.fig3_oneill_konvge,
         oneill_factorial_epsilon=args.fig3_oneill_factorial_epsilon,
+        ipopt_tol=args.fig3_ipopt_tol,
+        ipopt_acceptable_tol=args.fig3_ipopt_acceptable_tol,
+        ipopt_max_iter=args.fig3_ipopt_max_iter,
+        ipopt_linear_solver=args.fig3_ipopt_linear_solver,
+        ipopt_print_level=args.fig3_ipopt_print_level,
+        ipopt_dv_eps=args.fig3_ipopt_dv_eps,
         progress=args.progress,
         progress_every=args.progress_every,
         ephemeris=args.ephemeris,
@@ -1583,7 +1595,7 @@ def main() -> None:
             "usable_attempts": int(sum(bool(row.get("usable", False)) for row in fig3_rows)),
             "formal_success_attempts": int(sum(bool(row.get("optimizer_success", False)) for row in fig3_rows)),
             "optimizer_function_evaluations": int(sum(int(row.get("nfev", 0)) for row in fig3_rows)),
-            "notes": f"{args.fig3_optimizer} Nelder-Mead optimized higher-order evaluator",
+            "notes": f"{args.fig3_optimizer} optimized higher-order evaluator",
         },
         {
             "method": f"bspline_cylindrical_nctrl{args.bspline_n_ctrl}",

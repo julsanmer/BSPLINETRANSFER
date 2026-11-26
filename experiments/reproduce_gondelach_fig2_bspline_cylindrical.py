@@ -559,6 +559,49 @@ def lift_control_points_to_mats(
     return np.asarray(lift_matrix @ source_control_points, dtype=float)
 
 
+def is_single_segment_bezier_knots(knots: np.ndarray, degree: int) -> bool:
+    """Return whether a knot vector represents one clamped Bezier segment."""
+
+    knots = np.asarray(knots, dtype=float)
+    degree = int(degree)
+    n_ctrl = len(knots) - degree - 1
+    if degree < 0 or n_ctrl != degree + 1 or len(knots) != 2 * (degree + 1):
+        return False
+    return bool(
+        knots[0] < knots[-1]
+        and np.allclose(knots[: degree + 1], knots[0], rtol=0.0, atol=1.0e-14)
+        and np.allclose(knots[degree + 1 :], knots[-1], rtol=0.0, atol=1.0e-14)
+    )
+
+
+def bezier_degree_elevation_matrix(
+    source_degree: int,
+    target_degree: int,
+) -> np.ndarray:
+    """Return the exact Bernstein control-point degree-elevation map."""
+
+    source_degree = int(source_degree)
+    target_degree = int(target_degree)
+    if source_degree < 0:
+        raise ValueError("source_degree must be nonnegative")
+    if target_degree < source_degree:
+        raise ValueError("target_degree must be at least source_degree")
+
+    elevation = target_degree - source_degree
+    transform = np.zeros((target_degree + 1, source_degree + 1))
+    for target_index in range(target_degree + 1):
+        denominator = math.comb(target_degree, target_index)
+        source_min = max(0, target_index - elevation)
+        source_max = min(source_degree, target_index)
+        for source_index in range(source_min, source_max + 1):
+            transform[target_index, source_index] = (
+                math.comb(source_degree, source_index)
+                * math.comb(elevation, target_index - source_index)
+                / denominator
+            )
+    return transform
+
+
 def control_point_lift_matrix(
     source_knots: np.ndarray,
     source_degree: int,
@@ -574,6 +617,17 @@ def control_point_lift_matrix(
     n_source = len(source_knots) - source_degree - 1
     if n_source <= 0:
         raise ValueError("source_knots/source_degree imply no source control points")
+
+    target_knots = np.asarray(target_mats.knots, dtype=float)
+    target_degree = int(target_mats.degree)
+    if (
+        target_degree >= source_degree
+        and is_single_segment_bezier_knots(source_knots, source_degree)
+        and is_single_segment_bezier_knots(target_knots, target_degree)
+        and np.isclose(source_knots[0], target_knots[0], rtol=0.0, atol=1.0e-14)
+        and np.isclose(source_knots[-1], target_knots[-1], rtol=0.0, atol=1.0e-14)
+    ):
+        return bezier_degree_elevation_matrix(source_degree, target_degree)
 
     tau_fit = np.linspace(0.0, 1.0, int(n_fit))
     b_source = BSpline.design_matrix(tau_fit, source_knots, source_degree).toarray()

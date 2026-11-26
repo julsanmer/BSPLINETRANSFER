@@ -45,11 +45,37 @@ BASELINE_DEGREE = 5
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=sorted(CASE_CONFIGS), default="mars")
-    parser.add_argument("--bspline-n-ctrl", type=int, required=True)
-    parser.add_argument("--bspline-degree", type=int, required=True)
-    parser.add_argument("--bspline-n-fine", type=int, default=400)
-    parser.add_argument("--bspline-max-iter", type=int, default=700)
-    parser.add_argument("--bspline-workers", type=int, default=1)
+    parser.add_argument("--bspline-n-ctrl", type=int)
+    parser.add_argument("--bspline-degree", type=int)
+    parser.add_argument(
+        "--bezier-n-ctrl",
+        type=int,
+        help=(
+            "Run a single-segment Bezier curve with this many control points. "
+            "The polynomial degree is set to n_ctrl - 1."
+        ),
+    )
+    parser.add_argument(
+        "--bspline-n-fine",
+        "--n-fine",
+        dest="bspline_n_fine",
+        type=int,
+        default=400,
+    )
+    parser.add_argument(
+        "--bspline-max-iter",
+        "--max-iter",
+        dest="bspline_max_iter",
+        type=int,
+        default=700,
+    )
+    parser.add_argument(
+        "--bspline-workers",
+        "--workers",
+        dest="bspline_workers",
+        type=int,
+        default=1,
+    )
     parser.add_argument(
         "--bspline-linear-solver",
         choices=["mumps", "ma27", "ma57", "ma77", "ma86", "ma97"],
@@ -63,7 +89,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ephemeris", choices=["auto", "kepler", "spice"], default="auto")
     parser.add_argument("--spice-meta-kernel", default=None)
     parser.add_argument("--spice-target-name", default=None)
-    parser.add_argument("--bspline-quadrature-order", type=int, default=6)
+    parser.add_argument(
+        "--bspline-quadrature-order",
+        "--quadrature-order",
+        dest="bspline_quadrature_order",
+        type=int,
+        default=6,
+    )
     parser.add_argument(
         "--bspline-grid-continuation",
         action="store_true",
@@ -97,6 +129,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-max", type=int, default=None)
     parser.add_argument("--output-dir", default=None)
     parser.add_argument(
+        "--no-run-id",
+        action="store_true",
+        help=(
+            "Omit the eight-character configuration hash from variant filenames. "
+            "Use --force when replacing an existing un-hashed variant."
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Recompute and overwrite this variant's own files. Baseline Gondelach/bspline10 files are still untouched.",
@@ -107,7 +147,23 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Render Matplotlib text through an external LaTeX installation.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.bezier_n_ctrl is not None:
+        if args.bspline_n_ctrl is not None or args.bspline_degree is not None:
+            parser.error(
+                "--bezier-n-ctrl cannot be combined with "
+                "--bspline-n-ctrl or --bspline-degree"
+            )
+        if args.bezier_n_ctrl < 4:
+            parser.error("--bezier-n-ctrl must be at least 4")
+        args.bspline_n_ctrl = int(args.bezier_n_ctrl)
+        args.bspline_degree = int(args.bezier_n_ctrl) - 1
+    elif args.bspline_n_ctrl is None or args.bspline_degree is None:
+        parser.error(
+            "provide --bezier-n-ctrl, or provide both "
+            "--bspline-n-ctrl and --bspline-degree"
+        )
+    return args
 
 
 def default_output_dir(args: argparse.Namespace) -> Path:
@@ -116,8 +172,15 @@ def default_output_dir(args: argparse.Namespace) -> Path:
     return Path(f"output/compare_gondelach_{case['output_name']}_bspline10{step_suffix(suffix_args)}")
 
 
+def is_bezier_configuration(n_ctrl: int, degree: int) -> bool:
+    """Return whether the clamped B-spline is a single Bezier segment."""
+
+    return int(n_ctrl) == int(degree) + 1
+
+
 def variant_tag(n_ctrl: int, degree: int, run_id: str = "") -> str:
-    base = f"bspline_nctrl{int(n_ctrl)}_deg{int(degree)}"
+    family = "bezier" if is_bezier_configuration(n_ctrl, degree) else "bspline"
+    base = f"{family}_nctrl{int(n_ctrl)}_deg{int(degree)}"
     run_id = str(run_id or "").strip()
     return f"{base}_{run_id}" if run_id else base
 
@@ -568,9 +631,14 @@ def main() -> None:
     variant_optimizer_dv = None
 
     config = numerical_config(args)
-    run_id = config_run_id(config)
+    run_id = "" if args.no_run_id else config_run_id(config)
     tag = variant_tag(args.bspline_n_ctrl, args.bspline_degree, run_id)
-    label = f"B-spline, {args.bspline_n_ctrl} ctrl, degree {args.bspline_degree}"
+    family_label = (
+        "B\N{LATIN SMALL LETTER E WITH ACUTE}zier"
+        if is_bezier_configuration(args.bspline_n_ctrl, args.bspline_degree)
+        else "B-spline"
+    )
+    label = f"{family_label}, {args.bspline_n_ctrl} ctrl, degree {args.bspline_degree}"
     if args.bspline_grid_continuation:
         label += ", grid continuation"
     attempts_path = output_dir / f"{tag}_attempts.csv"

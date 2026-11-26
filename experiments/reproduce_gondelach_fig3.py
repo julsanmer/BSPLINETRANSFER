@@ -3,8 +3,8 @@
 Figure 3 is the higher-order time-driven Mars porkchop.  It uses the same
 Earth-to-Mars flight window as Fig. 2 and selects the lowest Delta V over
 N=0..5, but the velocity basis has six free coefficients.  Those free
-coefficients are optimized here with Nelder-Mead, following the paper's
-minimum-Delta-V setup.
+coefficients can be optimized with Nelder--Mead or CasADi/IPOPT using the
+same minimum-Delta-V setup.
 """
 
 from __future__ import annotations
@@ -24,7 +24,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from experiments.reproduce_gondelach_fig2 import (  # noqa: E402
+    AU_PER_DAY_TO_KM_PER_S,
     GONDELACH_FORMULATION_VERSION,
+    MU_SUN_AU_DAY,
     basis_integral_matrix,
     basis_matrix,
     cartesian_to_cylindrical,
@@ -39,7 +41,11 @@ from experiments.reproduce_gondelach_fig2 import (  # noqa: E402
     wrap_0_2pi,
     ephemeris_metadata,
 )
+from optimizer.hodographic_ipopt import TimeDrivenHodographicIpopt  # noqa: E402
+from optimizer.canonical_units import MU_CANONICAL, UA_AU_PER_YR2, UV_AU_PER_YR  # noqa: E402
+from optimizer.helpers_Bspline import mee_profile  # noqa: E402
 from optimizer.oneill_nelder_mead import minimize_oneill  # noqa: E402
+from utils.utils import mee2rv, rv2mee  # noqa: E402
 
 
 FIG3_BASIS = (
@@ -63,6 +69,179 @@ def initial_simplex(x0: np.ndarray, scale: float) -> np.ndarray:
     return simplex
 
 
+def build_ipopt_problem(
+    basis: str,
+    n_quad: int,
+    n_rev: int,
+    max_iter: int,
+    tol: float,
+    acceptable_tol: float,
+    print_level: int,
+    linear_solver: str,
+    dv_eps_canonical: float = 1.0e-6,
+    transverse_n_quad: int | None = None,
+) -> TimeDrivenHodographicIpopt:
+    """Build the reusable symbolic NLP for one revolution branch."""
+    n_quad = int(n_quad)
+    if n_quad % 2 == 0:
+        n_quad += 1
+    tau = np.linspace(0.0, 1.0, n_quad)
+    transverse_n_quad = n_quad if transverse_n_quad is None else int(transverse_n_quad)
+    if transverse_n_quad % 2 == 0:
+        transverse_n_quad += 1
+    tau_transverse = np.linspace(0.0, 1.0, transverse_n_quad)
+    radial_terms, transverse_terms, axial_terms = [parse_basis_group(part) for part in basis.split("-")]
+    radial_values, radial_derivatives = basis_matrix(radial_terms, tau, n_rev)
+    transverse_values, transverse_derivatives = basis_matrix(transverse_terms, tau, n_rev)
+    axial_values, axial_derivatives = basis_matrix(axial_terms, tau, n_rev)
+    return TimeDrivenHodographicIpopt(
+        radial_values,
+        radial_derivatives,
+        basis_integral_matrix(radial_terms, tau, n_rev),
+        transverse_values,
+        transverse_derivatives,
+        axial_values,
+        axial_derivatives,
+        basis_integral_matrix(axial_terms, tau, n_rev),
+        MU_SUN_AU_DAY,
+        AU_PER_DAY_TO_KM_PER_S,
+        radial_boundary_integrals=basis_integral_matrix(radial_terms, tau_transverse, n_rev),
+        transverse_boundary_values=basis_matrix(transverse_terms, tau_transverse, n_rev)[0],
+        max_iter=max_iter,
+        tol=tol,
+        acceptable_tol=acceptable_tol,
+        print_level=print_level,
+        linear_solver=linear_solver,
+        # The hodographic equations use AU/day^2, whereas the B-spline
+        # regularization parameter is specified in canonical acceleration.
+        dv_eps=float(dv_eps_canonical) * UA_AU_PER_YR2 / (365.25**2),
+    )
+
+
+def ipopt_endpoint_parameters(
+    problem: TimeDrivenHodographicIpopt,
+    dep: float,
+    tof: float,
+    n_rev: int,
+    target: str,
+) -> np.ndarray:
+    pos0, vel0 = planet_state("earth", dep)
+    posf, velf = planet_state(target, dep + tof)
+    q0, qdot0 = cartesian_to_cylindrical(pos0, vel0)
+    qf, qdotf = cartesian_to_cylindrical(posf, velf)
+    theta_target = wrap_0_2pi(float(qf[1] - q0[1])) + 2.0 * math.pi * int(n_rev)
+    return problem.endpoint_parameters(tof, q0, qdot0, qf, qdotf, theta_target)
+
+
+def _fit_free_coefficients(
+    build_coefficients,
+    values: np.ndarray,
+    desired_velocity: np.ndarray,
+    n_free: int,
+) -> np.ndarray:
+    """Fit free coefficients while preserving the eliminated boundary equations."""
+    if n_free <= 0:
+        return np.zeros(0, dtype=float)
+    zero = np.zeros(n_free, dtype=float)
+    base = np.asarray(build_coefficients(zero), dtype=float)
+    sensitivity = np.column_stack(
+        [np.asarray(build_coefficients(np.eye(n_free)[idx]), dtype=float) - base for idx in range(n_free)]
+    )
+    lhs = values @ sensitivity
+    rhs = np.asarray(desired_velocity, dtype=float) - values @ base
+    return np.linalg.lstsq(lhs, rhs, rcond=None)[0]
+
+
+def mee_profile_hodographic_seed(
+    dep: float,
+    tof: float,
+    n_rev: int,
+    target: str,
+    basis: str,
+    profile: str = "quintic",
+    n_fit: int = 301,
+) -> np.ndarray:
+    """Fit free hodographic coefficients to an independently built MEE profile."""
+    n_fit = max(11, int(n_fit))
+    tau = np.linspace(0.0, 1.0, n_fit)
+    radial_terms, transverse_terms, axial_terms = [parse_basis_group(part) for part in basis.split("-")]
+    counts = [max(0, len(terms) - 3) for terms in (radial_terms, transverse_terms, axial_terms)]
+
+    pos0, vel0 = planet_state("earth", dep)
+    posf, velf = planet_state(target, dep + tof)
+    q0, qdot0 = cartesian_to_cylindrical(pos0, vel0)
+    qf, qdotf = cartesian_to_cylindrical(posf, velf)
+    theta_delta = wrap_0_2pi(float(qf[1] - q0[1])) + 2.0 * math.pi * int(n_rev)
+
+    def to_mee(pos: np.ndarray, vel_au_day: np.ndarray) -> np.ndarray:
+        velocity_canonical = np.asarray(vel_au_day, dtype=float) * 365.25 / UV_AU_PER_YR
+        return rv2mee(np.asarray(pos, dtype=float), velocity_canonical, MU_CANONICAL)
+
+    mee0 = to_mee(pos0, vel0)
+    meef = to_mee(posf, velf)
+    mee_fit = mee_profile(tau, mee0, meef, profile)
+    positions = np.vstack([mee2rv(state, MU_CANONICAL)[0] for state in mee_fit])
+    rho_target = np.hypot(positions[:, 0], positions[:, 1])
+    theta_target = np.unwrap(np.arctan2(positions[:, 1], positions[:, 0]))
+    theta_target += q0[1] - theta_target[0]
+    theta_target += tau * (q0[1] + theta_delta - theta_target[-1])
+    z_target = positions[:, 2]
+
+    edge_order = 2 if n_fit >= 3 else 1
+    vr_target = np.gradient(rho_target, tau, edge_order=edge_order) / float(tof)
+    theta_dot_target = np.gradient(theta_target, tau, edge_order=edge_order) / float(tof)
+    vtheta_target = rho_target * theta_dot_target
+    vz_target = np.gradient(z_target, tau, edge_order=edge_order) / float(tof)
+    vr_target[[0, -1]] = [qdot0[0], qdotf[0]]
+    vtheta_target[[0, -1]] = [qdot0[1], qdotf[1]]
+    vz_target[[0, -1]] = [qdot0[2], qdotf[2]]
+
+    br, _ = basis_matrix(radial_terms, tau, n_rev)
+    ir = basis_integral_matrix(radial_terms, tau, n_rev)
+    radial_free = _fit_free_coefficients(
+        lambda free: solve_component_coefficients(
+            radial_terms, tau, n_rev, tof, qdot0[0], qdotf[0], qf[0] - q0[0], free
+        ),
+        br,
+        vr_target,
+        counts[0],
+    )
+    coeff_r = solve_component_coefficients(
+        radial_terms, tau, n_rev, tof, qdot0[0], qdotf[0], qf[0] - q0[0], radial_free
+    )
+    rho_fitted = q0[0] + float(tof) * (ir @ coeff_r)
+    if np.min(rho_fitted) <= 1.0e-6:
+        raise ValueError("MEE-fit radial hodographic seed has nonpositive radius")
+
+    bt, _ = basis_matrix(transverse_terms, tau, n_rev)
+    transverse_free = _fit_free_coefficients(
+        lambda free: solve_transverse_coefficients(
+            transverse_terms,
+            tau,
+            n_rev,
+            tof,
+            qdot0[1],
+            qdotf[1],
+            theta_delta,
+            rho_fitted,
+            free,
+        ),
+        bt,
+        vtheta_target,
+        counts[1],
+    )
+    bz, _ = basis_matrix(axial_terms, tau, n_rev)
+    axial_free = _fit_free_coefficients(
+        lambda free: solve_component_coefficients(
+            axial_terms, tau, n_rev, tof, qdot0[2], qdotf[2], qf[2] - q0[2], free
+        ),
+        bz,
+        vz_target,
+        counts[2],
+    )
+    return np.concatenate([radial_free, transverse_free, axial_free])
+
+
 def optimize_grid_point(
     dep: float,
     tof: float,
@@ -79,6 +258,14 @@ def optimize_grid_point(
     oneill_reqmin: float = 1.0e-8,
     oneill_konvge: int = 10,
     oneill_factorial_epsilon: float = 1.0e-3,
+    ipopt_problem: TimeDrivenHodographicIpopt | None = None,
+    ipopt_max_iter: int = 1000,
+    ipopt_tol: float = 1.0e-8,
+    ipopt_acceptable_tol: float = 1.0e-6,
+    ipopt_linear_solver: str = "mumps",
+    ipopt_print_level: int = 0,
+    ipopt_dv_eps: float = 1.0e-6,
+    transverse_n_quad: int | None = None,
 ) -> dict:
     branch_t0 = perf_counter()
     x0 = np.asarray(x0, dtype=float)
@@ -93,6 +280,7 @@ def optimize_grid_point(
                 basis,
                 free,
                 target=target,
+                transverse_n_quad=transverse_n_quad,
             )
         except Exception:
             dv = float("nan")
@@ -126,10 +314,31 @@ def optimize_grid_point(
             factorial_epsilon=float(oneill_factorial_epsilon),
         )
         result_restarts = int(result.num_restarts)
+    elif optimizer == "ipopt":
+        if ipopt_problem is None:
+            ipopt_problem = build_ipopt_problem(
+                basis,
+                n_quad,
+                n_rev,
+                ipopt_max_iter,
+                ipopt_tol,
+                ipopt_acceptable_tol,
+                ipopt_print_level,
+                ipopt_linear_solver,
+                ipopt_dv_eps,
+                transverse_n_quad,
+            )
+        parameters = ipopt_endpoint_parameters(ipopt_problem, dep, tof, n_rev, target)
+        result = ipopt_problem.solve(x0, parameters)
+        result_restarts = 0
     else:
         raise ValueError(f"Unknown Figure 3 optimizer: {optimizer!r}")
 
-    candidates = [(start_dv, x0), (float(result.fun), np.asarray(result.x, dtype=float))]
+    result_x = np.asarray(result.x, dtype=float)
+    # Re-evaluate with the shared NumPy evaluator so stored objectives have
+    # identical semantics for Nelder--Mead and IPOPT.
+    result_dv = objective(result_x)
+    candidates = [(start_dv, x0), (result_dv, result_x)]
     best_value, best_free = min(candidates, key=lambda item: item[0])
     usable = bool(np.isfinite(best_value) and best_value < 1.0e5)
     return {
@@ -146,6 +355,7 @@ def optimize_grid_point(
         "message": str(result.message),
         "free_coefficients": best_free,
         "start_delta_v_km_s": float(start_dv) if start_dv < 1.0e5 else float("nan"),
+        "transverse_n_quad": int(n_quad if transverse_n_quad is None else transverse_n_quad),
         "wall_time_s": perf_counter() - branch_t0,
     }
 
@@ -167,6 +377,21 @@ def compute_grid(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray, list
     previous_row: dict[tuple[int, int], np.ndarray] = {}
     total = len(dep_grid) * len(tof_grid) * (args.n_max - args.n_min + 1)
     count = 0
+    ipopt_problems: dict[int, TimeDrivenHodographicIpopt] = {}
+    if str(getattr(args, "optimizer", "scipy")) == "ipopt":
+        for n_rev in range(args.n_min, args.n_max + 1):
+            ipopt_problems[n_rev] = build_ipopt_problem(
+                args.basis,
+                int(args.n_quad),
+                n_rev,
+                int(getattr(args, "ipopt_max_iter", 1000)),
+                float(getattr(args, "ipopt_tol", 1.0e-8)),
+                float(getattr(args, "ipopt_acceptable_tol", 1.0e-6)),
+                int(getattr(args, "ipopt_print_level", 0)),
+                str(getattr(args, "ipopt_linear_solver", "mumps")),
+                float(getattr(args, "ipopt_dv_eps", 1.0e-6)),
+                getattr(args, "transverse_n_quad", None),
+            )
 
     for i_tof, tof in enumerate(tof_grid):
         current_row: dict[tuple[int, int], np.ndarray] = {}
@@ -195,6 +420,14 @@ def compute_grid(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray, list
                     float(getattr(args, "oneill_reqmin", 1.0e-8)),
                     int(getattr(args, "oneill_konvge", 10)),
                     float(getattr(args, "oneill_factorial_epsilon", 1.0e-3)),
+                    ipopt_problems.get(n_rev),
+                    int(getattr(args, "ipopt_max_iter", 1000)),
+                    float(getattr(args, "ipopt_tol", 1.0e-8)),
+                    float(getattr(args, "ipopt_acceptable_tol", 1.0e-6)),
+                    str(getattr(args, "ipopt_linear_solver", "mumps")),
+                    int(getattr(args, "ipopt_print_level", 0)),
+                    float(getattr(args, "ipopt_dv_eps", 1.0e-6)),
+                    getattr(args, "transverse_n_quad", None),
                 )
                 rows.append(row)
                 branch_rows.append(row)
@@ -229,6 +462,8 @@ def write_attempts_csv(path: Path, rows: list[dict]) -> None:
         "nfev",
         "nit",
         "num_restarts",
+        "initialization",
+        "transverse_n_quad",
         "wall_time_s",
         "message",
         *[f"free_{idx}" for idx in range(max_free)],
@@ -534,10 +769,21 @@ def main() -> None:
     parser.add_argument("--xatol", type=float, default=1e-6)
     parser.add_argument("--fatol", type=float, default=1e-6)
     parser.add_argument("--simplex-scale", type=float, default=1e-2)
-    parser.add_argument("--optimizer", choices=["scipy", "oneill"], default="scipy")
+    parser.add_argument("--optimizer", choices=["scipy", "oneill", "ipopt"], default="scipy")
     parser.add_argument("--oneill-reqmin", type=float, default=1e-8)
     parser.add_argument("--oneill-konvge", type=int, default=10)
     parser.add_argument("--oneill-factorial-epsilon", type=float, default=1e-3)
+    parser.add_argument("--ipopt-tol", type=float, default=1e-8)
+    parser.add_argument("--ipopt-acceptable-tol", type=float, default=1e-6)
+    parser.add_argument("--ipopt-max-iter", type=int, default=1000)
+    parser.add_argument("--ipopt-linear-solver", default="mumps")
+    parser.add_argument("--ipopt-print-level", type=int, default=0)
+    parser.add_argument(
+        "--ipopt-dv-eps",
+        type=float,
+        default=1e-6,
+        help="Smooth Delta-V norm epsilon in the same canonical acceleration units as the B-spline solver.",
+    )
     parser.add_argument("--output-dir", default="output/gondelach_fig3")
     parser.add_argument("--progress", action="store_true")
     parser.add_argument("--progress-every", type=int, default=20)
@@ -570,6 +816,11 @@ def main() -> None:
         oneill_reqmin=args.oneill_reqmin,
         oneill_konvge=args.oneill_konvge,
         oneill_factorial_epsilon=args.oneill_factorial_epsilon,
+        ipopt_tol=args.ipopt_tol,
+        ipopt_acceptable_tol=args.ipopt_acceptable_tol,
+        ipopt_max_iter=args.ipopt_max_iter,
+        ipopt_linear_solver=args.ipopt_linear_solver,
+        ipopt_dv_eps=args.ipopt_dv_eps,
     )
     t0 = perf_counter()
     write_coefficients_npz(coeff_path, rows, dep_grid, tof_grid, args)
@@ -592,7 +843,7 @@ def main() -> None:
                 "usable_attempts": int(sum(bool(row.get("usable", False)) for row in rows)),
                 "formal_success_attempts": int(sum(bool(row.get("optimizer_success", False)) for row in rows)),
                 "optimizer_function_evaluations": int(sum(int(row.get("nfev", 0)) for row in rows)),
-                "notes": f"{args.optimizer} Nelder-Mead optimized higher-order evaluator",
+                "notes": f"{args.optimizer} optimized higher-order evaluator",
             },
             {
                 "method": "gondelach_fig3_coefficients",

@@ -585,6 +585,7 @@ def evaluate_time_driven_metrics(
     basis: str = "CPowPow2-CPowPow2-CosN5P3CosN5P3SinN5",
     free_coefficients: np.ndarray | None = None,
     target: str = "mars",
+    transverse_n_quad: int | None = None,
 ) -> dict:
     if n_quad % 2 == 0:
         n_quad += 1
@@ -620,15 +621,21 @@ def evaluate_time_driven_metrics(
     if np.any(~np.isfinite(rho)) or np.min(rho) <= 1e-6:
         return float("nan")
 
+    transverse_n_quad = n_quad if transverse_n_quad is None else int(transverse_n_quad)
+    if transverse_n_quad % 2 == 0:
+        transverse_n_quad += 1
+    tau_transverse = np.linspace(0.0, 1.0, transverse_n_quad)
+    radial_integrals_transverse = basis_integral_matrix(radial_terms, tau_transverse, n_rev)
+    rho_transverse = q0[0] + tof_days * (radial_integrals_transverse @ coeff_r)
     coeff_theta = solve_transverse_coefficients(
         transverse_terms,
-        tau,
+        tau_transverse,
         n_rev,
         tof_days,
         qdot0[1],
         qdotf[1],
         theta_target,
-        rho,
+        rho_transverse,
         transverse_free,
     )
     coeff_z = solve_component_coefficients(
@@ -672,6 +679,7 @@ def evaluate_time_driven(
     basis: str = "CPowPow2-CPowPow2-CosN5P3CosN5P3SinN5",
     free_coefficients: np.ndarray | None = None,
     target: str = "mars",
+    transverse_n_quad: int | None = None,
 ) -> float:
     return float(
         evaluate_time_driven_metrics(
@@ -682,6 +690,7 @@ def evaluate_time_driven(
             basis,
             free_coefficients,
             target,
+            transverse_n_quad,
         )["delta_v_km_s"]
     )
 

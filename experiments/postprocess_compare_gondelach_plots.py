@@ -73,10 +73,11 @@ class BsplineVariantSpec:
     n_ctrl: int
     degree: int
     run_id: str = ""
+    family: str = "bspline"
 
     @property
     def key(self) -> str:
-        base = f"bspline_nctrl{self.n_ctrl}_deg{self.degree}"
+        base = f"{self.family}_nctrl{self.n_ctrl}_deg{self.degree}"
         return f"{base}_{self.run_id}" if self.run_id else base
 
 
@@ -174,6 +175,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pareto-x-min", type=float, default=None, help="Minimum x-axis value for the zoomed Pareto plot.")
     parser.add_argument("--pareto-x-max", type=float, default=None, help="Maximum x-axis value for the zoomed Pareto plot.")
     parser.add_argument(
+        "--pareto-x-ticks",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Explicit x-axis tick positions for the zoomed Pareto plot.",
+    )
+    parser.add_argument(
         "--pareto-y-min",
         type=float,
         default=None,
@@ -186,6 +194,13 @@ def parse_args() -> argparse.Namespace:
         help="Maximum y-axis value for the zoomed Pareto plot.",
     )
     parser.add_argument(
+        "--pareto-y-ticks",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Explicit y-axis tick positions for the zoomed Pareto plot.",
+    )
+    parser.add_argument(
         "--pareto-swap-axes",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -193,13 +208,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--pareto-bspline-variants",
+        "--pareto-variants",
+        dest="pareto_bspline_variants",
         nargs="+",
         default=None,
         help=(
-            "B-spline variants to include in the publication Pareto plot. "
-            "Accepts n_ctrl:degree, n_ctrl:degree:run_id, or full configuration-hashed keys. "
+            "B-spline and Bezier variants to include in the publication Pareto plot. "
+            "Accepts n_ctrl:degree[:run_id] for B-splines, "
+            "bezier:n_ctrl:degree[:run_id], or full configuration-hashed keys. "
             "The kept baseline 10:5 is read from comparison_pareto_points.csv; other variants "
-            "are read from comparison_pareto_points_bspline_nctrl*_deg*.csv when present."
+            "are read from their comparison_pareto_points_<variant-key>.csv files."
         ),
     )
     parser.add_argument(
@@ -242,7 +260,9 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.pareto_bspline_variants is None:
         args.pareto_bspline_variants = (
-            [str(args.bspline_variant)] if args.bspline_variant else ["10:5", "10:3", "40:5", "40:3"]
+            [str(args.bspline_variant)]
+            if args.bspline_variant
+            else ["10:3", "10:5", "20:3", "20:5", "bezier:10:9", "bezier:20:19"]
         )
     return args
 
@@ -270,37 +290,68 @@ def output_figure_path(output_dir: Path, case_name: str, stem: str, extension: s
 
 def parse_bspline_variant_spec(spec: str) -> BsplineVariantSpec:
     text = str(spec).strip()
-    key_match = re.fullmatch(r"bspline_nctrl(\d+)_deg(\d+)(?:_(.+))?", text)
+    key_match = re.fullmatch(r"(bspline|bezier)_nctrl(\d+)_deg(\d+)(?:_(.+))?", text, re.IGNORECASE)
     if key_match:
-        n_ctrl = int(key_match.group(1))
-        degree = int(key_match.group(2))
-        run_id = str(key_match.group(3) or "")
+        family = key_match.group(1).lower()
+        n_ctrl = int(key_match.group(2))
+        degree = int(key_match.group(3))
+        run_id = str(key_match.group(4) or "")
     else:
         parts = text.split(":")
+        family = "bspline"
+        if parts and parts[0].lower() in {"bspline", "bezier"}:
+            family = parts.pop(0).lower()
         if len(parts) not in {2, 3}:
             raise ValueError(
-                f"Expected B-spline variant spec as n_ctrl:degree[:run_id], got {spec!r}"
+                "Expected variant as n_ctrl:degree[:run_id] or "
+                f"bezier:n_ctrl:degree[:run_id], got {spec!r}"
             )
         try:
             n_ctrl = int(parts[0])
             degree = int(parts[1])
         except ValueError as exc:
             raise ValueError(
-                f"Expected B-spline variant spec as n_ctrl:degree[:run_id], got {spec!r}"
+                f"Expected positive integer control-point count and degree, got {spec!r}"
             ) from exc
         run_id = parts[2].strip() if len(parts) == 3 else ""
     if n_ctrl <= 0 or degree <= 0:
-        raise ValueError(f"B-spline variant values must be positive, got {spec!r}")
+        raise ValueError(f"Variant values must be positive, got {spec!r}")
     if run_id and not re.fullmatch(r"[0-9a-fA-F]{8}", run_id):
-        raise ValueError(f"B-spline run ID must contain exactly eight hexadecimal characters: {spec!r}")
-    return BsplineVariantSpec(n_ctrl=n_ctrl, degree=degree, run_id=run_id.lower())
+        raise ValueError(f"Run ID must contain exactly eight hexadecimal characters: {spec!r}")
+    if family == "bezier" and degree != n_ctrl - 1:
+        raise ValueError(
+            f"A single-segment Bezier curve requires degree = n_ctrl - 1, got {spec!r}"
+        )
+    return BsplineVariantSpec(
+        n_ctrl=n_ctrl,
+        degree=degree,
+        run_id=run_id.lower(),
+        family=family,
+    )
 
 
 def bspline_variant_label(variant: BsplineVariantSpec) -> str:
+    if variant.family == "bezier":
+        return f"Bézier ($n_c={int(variant.n_ctrl)}$, $p={int(variant.degree)}$)"
     degree_names = {3: "Cubic", 5: "Quintic"}
     degree_label = degree_names.get(int(variant.degree), f"Degree {int(variant.degree)}")
     label = f"{degree_label} B-spline ($n_c={int(variant.n_ctrl)}$)"
     return label
+
+
+def variant_style_key(method: str) -> str:
+    """Remove a configuration hash so plot styles apply across mission cases."""
+    return re.sub(r"_[0-9a-fA-F]{8}$", "", str(method))
+
+
+def comparison_method_zorder(method: str) -> int:
+    """Keep B-spline curves visible above Bezier curves at overlaps."""
+    style_key = variant_style_key(method)
+    if style_key.startswith("bspline"):
+        return 4
+    if style_key.startswith("bezier"):
+        return 2
+    return 3
 
 
 def resolve_variant_artifact(
@@ -317,7 +368,7 @@ def resolve_variant_artifact(
     if len(matches) > 1:
         names = ", ".join(path.name for path in matches)
         raise ValueError(
-            "Multiple configuration-hashed B-spline runs match this variant. "
+            "Multiple configuration-hashed runs match this variant. "
             f"Select one by its eight-character run ID: {names}"
         )
     return exact
@@ -325,7 +376,8 @@ def resolve_variant_artifact(
 
 def is_nominal_baseline_variant(variant: BsplineVariantSpec | None) -> bool:
     return variant is None or (
-        variant.n_ctrl == 10
+        variant.family == "bspline"
+        and variant.n_ctrl == 10
         and variant.degree == 5
         and not variant.run_id
     )
@@ -370,7 +422,12 @@ def read_publication_pareto_points(
 ) -> tuple[dict[str, list[dict]], list[str], dict[str, str]]:
     variants = sorted(
         (parse_bspline_variant_spec(spec) for spec in variant_specs),
-        key=lambda variant: (variant.n_ctrl, variant.degree, variant.run_id),
+        key=lambda variant: (
+            {"bspline": 0, "bezier": 1}.get(variant.family, 9),
+            variant.n_ctrl,
+            variant.degree,
+            variant.run_id,
+        ),
     )
     method_order = ["gondelach_fig2", "gondelach_fig3"]
     method_labels = {
@@ -386,7 +443,7 @@ def read_publication_pareto_points(
         key = variant.key
         method_order.append(key)
         method_labels[key] = bspline_variant_label(variant)
-        if variant.n_ctrl == 10 and variant.degree == 5 and not variant.run_id:
+        if is_nominal_baseline_variant(variant):
             variant_path = resolve_variant_artifact(
                 output_dir,
                 f"comparison_pareto_points_{key}.csv",
@@ -1220,6 +1277,29 @@ def plot_best_transfer_profiles(
         (r"$u_z$", "#009e73", "--"),
     ]
 
+    shared_control_x_max = max(
+        float(gondelach["tof_days"]),
+        float(bspline["tof_days"]),
+    ) / YEAR_DAYS
+    shared_control_values = np.concatenate(
+        [
+            1000.0 * np.asarray(gondelach["u_components_m_s2"], dtype=float).ravel(),
+            1000.0 * np.asarray(gondelach["u_norm_m_s2"], dtype=float).ravel(),
+            1000.0 * np.asarray(bspline["u_components_m_s2"], dtype=float).ravel(),
+            1000.0 * np.asarray(bspline["u_norm_m_s2"], dtype=float).ravel(),
+            np.asarray([0.0]),
+        ]
+    )
+    shared_control_values = shared_control_values[np.isfinite(shared_control_values)]
+    shared_control_y_min = float(np.min(shared_control_values))
+    shared_control_y_max = float(np.max(shared_control_values))
+    shared_control_y_span = max(shared_control_y_max - shared_control_y_min, 1e-12)
+    shared_control_y_padding = 0.05 * shared_control_y_span
+    shared_control_y_limits = (
+        shared_control_y_min - shared_control_y_padding,
+        shared_control_y_max + shared_control_y_padding,
+    )
+
     for ax, profile, title in [
         (axes[0, 1], gondelach, f"{gondelach_label} control"),
         (axes[1, 1], bspline, f"{bspline_label} control"),
@@ -1239,12 +1319,36 @@ def plot_best_transfer_profiles(
             )
         ax.plot(t, norm, color="0.15", linestyle="-", linewidth=2.2, label=r"$\|\mathbf{u}\|$", zorder=2)
         ax.axhline(0.0, color="0.75", linewidth=0.8)
-        ax.set_xlim(0.0, float(profile["tof_days"]) / YEAR_DAYS)
+        arrival_time_yr = float(profile["tof_days"]) / YEAR_DAYS
+        arrival_line = None
+        if arrival_time_yr < shared_control_x_max - 1e-12:
+            arrival_line = ax.axvline(
+                arrival_time_yr,
+                color="0.35",
+                linestyle=":",
+                linewidth=2.0,
+                label="_nolegend_",
+                zorder=1,
+            )
+        ax.set_xlim(0.0, shared_control_x_max)
+        ax.set_ylim(*shared_control_y_limits)
         ax.set_xlabel("Time [yr]")
         ax.set_ylabel(r"$u$ [mm/s$^2$]")
         ax.set_title(f"{title}\n$\\Delta V$ = {float(profile['delta_v_km_s']):.3f} km/s")
         ax.grid(True, alpha=0.25)
-        ax.legend(fontsize=LEGEND_FONTSIZE, ncol=2)
+        control_legend = ax.legend(
+            fontsize=LEGEND_FONTSIZE,
+            ncol=2,
+            loc="upper right" if case_name == "mercury" else "upper left",
+        )
+        if arrival_line is not None:
+            ax.add_artist(control_legend)
+            ax.legend(
+                handles=[arrival_line],
+                labels=["Rendezvous"],
+                fontsize=13,
+                loc="lower right" if case_name == "mercury" else "upper right",
+            )
 
     fig.subplots_adjust(left=0.055, right=0.985, bottom=0.075, top=0.94, wspace=0.18, hspace=0.42)
     for ax in (axes[0, 1], axes[1, 1]):
@@ -1572,6 +1676,8 @@ def plot_pareto_zoom(
     method_labels: dict[str, str] | None = None,
     auto_fit_x: bool = True,
     auto_fit_y: bool = True,
+    x_ticks: np.ndarray | None = None,
+    y_ticks: np.ndarray | None = None,
 ) -> None:
     import matplotlib
 
@@ -1588,17 +1694,25 @@ def plot_pareto_zoom(
         "bspline_nctrl10_deg3": "#5dade2",
         "bspline_nctrl10_deg5": "#1f77b4",
         "bspline_nctrl10_deg5_gaussq6": "#2e86c1",
+        "bspline_nctrl20_deg3": "#3f93c5",
+        "bspline_nctrl20_deg5": "#155f91",
         "bspline_nctrl40_deg3": "#2874a6",
         "bspline_nctrl40_deg5": "#0b3c5d",
+        "bezier_nctrl10_deg9": "#66C2A5",
+        "bezier_nctrl20_deg19": "#007A4D",
     }
     fallback_colors = ["#5dade2", "#1f77b4", "#2874a6", "#0b3c5d", "#999999"]
     markers = {
         "gondelach_fig3": "^",
         "bspline_nctrl10_deg3": "o",
-        "bspline_nctrl10_deg5": "o",
-        "bspline_nctrl10_deg5_gaussq6": "o",
-        "bspline_nctrl40_deg3": "s",
+        "bspline_nctrl10_deg5": "s",
+        "bspline_nctrl10_deg5_gaussq6": "s",
+        "bspline_nctrl20_deg3": "o",
+        "bspline_nctrl20_deg5": "s",
+        "bspline_nctrl40_deg3": "o",
         "bspline_nctrl40_deg5": "s",
+        "bezier_nctrl10_deg9": "x",
+        "bezier_nctrl20_deg19": "x",
     }
     fallback_markers = ["o", "s", "D", "X", "*"]
     linestyles = {
@@ -1606,8 +1720,12 @@ def plot_pareto_zoom(
         "bspline_nctrl10_deg3": "--",
         "bspline_nctrl10_deg5": "-",
         "bspline_nctrl10_deg5_gaussq6": "-.",
+        "bspline_nctrl20_deg3": "--",
+        "bspline_nctrl20_deg5": "-",
         "bspline_nctrl40_deg3": "--",
         "bspline_nctrl40_deg5": "-",
+        "bezier_nctrl10_deg9": "-.",
+        "bezier_nctrl20_deg19": "-.",
     }
 
     def padded_limits(values: np.ndarray, lower: float, upper: float, pad_fraction: float = 0.08) -> tuple[float, float]:
@@ -1629,9 +1747,11 @@ def plot_pareto_zoom(
         points = points_by_method.get(method, [])
         if not points:
             continue
-        color = colors.get(method, fallback_colors[idx % len(fallback_colors)])
-        marker = markers.get(method, fallback_markers[idx % len(fallback_markers)])
-        linestyle = linestyles.get(method, "-")
+        style_key = variant_style_key(method)
+        color = colors.get(style_key, fallback_colors[idx % len(fallback_colors)])
+        marker = markers.get(style_key, fallback_markers[idx % len(fallback_markers)])
+        linestyle = linestyles.get(style_key, "-")
+        method_zorder = comparison_method_zorder(method)
         label = method_labels.get(method, method)
         front = pareto_front(points)
         if front:
@@ -1654,7 +1774,7 @@ def plot_pareto_zoom(
                 color=color,
                 clip_on=False,
                 label=label,
-                zorder=3,
+                zorder=method_zorder,
             )
 
     if visible_front_x and auto_fit_x:
@@ -1664,7 +1784,11 @@ def plot_pareto_zoom(
 
     ax.set_xlim(x_min, x_max)
     ax.margins(x=0.0)
+    if x_ticks is not None:
+        ax.set_xticks(np.asarray(x_ticks, dtype=float))
     ax.set_ylim(y_min, y_max)
+    if y_ticks is not None:
+        ax.set_yticks(np.asarray(y_ticks, dtype=float))
     if swap_axes:
         ax.set_xlabel(r"$u_{\max}\ [\mathrm{mm/s^2}]$")
         ax.set_ylabel(r"$\Delta V\ [\mathrm{km/s}]$")
@@ -1709,6 +1833,7 @@ def plot_pareto_delta_v_tof(
     method_labels: dict[str, str] | None = None,
     log_delta_v: bool = False,
     legend_loc: str | None = None,
+    x_ticks: np.ndarray | None = None,
 ) -> None:
     import matplotlib
 
@@ -1726,18 +1851,26 @@ def plot_pareto_delta_v_tof(
         "bspline10": "#1f77b4",
         "bspline_nctrl10_deg3": "#5dade2",
         "bspline_nctrl10_deg5": "#1f77b4",
+        "bspline_nctrl20_deg3": "#3f93c5",
+        "bspline_nctrl20_deg5": "#155f91",
         "bspline_nctrl40_deg3": "#2874a6",
         "bspline_nctrl40_deg5": "#0b3c5d",
+        "bezier_nctrl10_deg9": "#66C2A5",
+        "bezier_nctrl20_deg19": "#007A4D",
     }
     fallback_colors = ["#5dade2", "#1f77b4", "#2874a6", "#0b3c5d", "#999999"]
     markers = {
         "gondelach_fig2": "v",
         "gondelach_fig3": "^",
-        "bspline10": "o",
+        "bspline10": "s",
         "bspline_nctrl10_deg3": "o",
-        "bspline_nctrl10_deg5": "o",
-        "bspline_nctrl40_deg3": "s",
+        "bspline_nctrl10_deg5": "s",
+        "bspline_nctrl20_deg3": "o",
+        "bspline_nctrl20_deg5": "s",
+        "bspline_nctrl40_deg3": "o",
         "bspline_nctrl40_deg5": "s",
+        "bezier_nctrl10_deg9": "x",
+        "bezier_nctrl20_deg19": "x",
     }
     fallback_markers = ["o", "s", "D", "X", "*"]
     linestyles = {
@@ -1746,8 +1879,12 @@ def plot_pareto_delta_v_tof(
         "bspline10": "-",
         "bspline_nctrl10_deg3": "--",
         "bspline_nctrl10_deg5": "-",
+        "bspline_nctrl20_deg3": "--",
+        "bspline_nctrl20_deg5": "-",
         "bspline_nctrl40_deg3": "--",
         "bspline_nctrl40_deg5": "-",
+        "bezier_nctrl10_deg9": "-.",
+        "bezier_nctrl20_deg19": "-.",
     }
 
     fig, ax = plt.subplots(figsize=(7.0, 5.4))
@@ -1755,9 +1892,11 @@ def plot_pareto_delta_v_tof(
         points = best_delta_v_by_tof(points_by_method.get(method, []))
         if not points:
             continue
-        color = colors.get(method, fallback_colors[idx % len(fallback_colors)])
-        marker = markers.get(method, fallback_markers[idx % len(fallback_markers)])
-        linestyle = linestyles.get(method, "-")
+        style_key = variant_style_key(method)
+        color = colors.get(style_key, fallback_colors[idx % len(fallback_colors)])
+        marker = markers.get(style_key, fallback_markers[idx % len(fallback_markers)])
+        linestyle = linestyles.get(style_key, "-")
+        method_zorder = comparison_method_zorder(method)
         label = method_labels.get(method, method)
         delta_v = np.asarray([float(point["delta_v_km_s"]) for point in points], dtype=float)
         tof_days = np.asarray([float(point["tof_days"]) for point in points], dtype=float)
@@ -1770,22 +1909,27 @@ def plot_pareto_delta_v_tof(
             color=color,
             clip_on=False,
             label=label,
-            zorder=3,
+            zorder=method_zorder,
         )
         best_idx = int(np.nanargmin(delta_v))
+        marker_style = (
+            {"color": color, "linewidth": 1.7}
+            if marker == "x"
+            else {"facecolor": color, "edgecolor": "white", "linewidth": 0.7}
+        )
         ax.scatter(
             [tof_days[best_idx]],
             [delta_v[best_idx]],
             marker=marker,
             s=55,
-            facecolor=color,
-            edgecolor="white",
-            linewidth=0.7,
             clip_on=False,
-            zorder=4,
+            zorder=method_zorder + 1,
+            **marker_style,
         )
 
     ax.margins(x=0.0)
+    if x_ticks is not None:
+        ax.set_xticks(np.asarray(x_ticks, dtype=float))
     if log_delta_v:
         ax.set_yscale("log")
         y_min, y_max = ax.get_ylim()
@@ -1827,9 +1971,109 @@ def write_case_global_statistics(
     rows, best_row = compute_case_rows(args.case, source_dir, variants)
     stats_path = plots_output_dir / "global_statistics_delta_v.csv"
     best_path = plots_output_dir / "global_statistics_best_method_by_grid_point.csv"
+    solver_path = plots_output_dir / "global_statistics_solver_success.csv"
     write_csv(stats_path, rows)
     write_csv(best_path, [best_row])
-    return [stats_path, best_path]
+    write_solver_success_statistics(source_dir, solver_path, args, variants)
+    return [stats_path, best_path, solver_path]
+
+
+def write_solver_success_statistics(
+    source_dir: Path,
+    output_path: Path,
+    args: argparse.Namespace,
+    variants: list[BsplineVariantSpec],
+) -> None:
+    """Write solver, usability, and grid-coverage statistics by method."""
+
+    methods: list[tuple[str, str, Path, str]] = [
+        (
+            "gondelach_fig3",
+            "High-order hodographic",
+            source_dir / "fig3_attempts.csv",
+            "optimizer_success",
+        )
+    ]
+    seen = {"gondelach_fig3"}
+    for variant in variants:
+        if variant.key in seen:
+            continue
+        seen.add(variant.key)
+        methods.append(
+            (
+                variant.key,
+                bspline_variant_label(variant),
+                bspline_attempts_path(source_dir, variant),
+                "success",
+            )
+        )
+
+    output_rows: list[dict[str, object]] = []
+    for method, label, attempts_path, success_field in methods:
+        if not attempts_path.exists():
+            continue
+        attempts = filter_departure_rows(
+            read_rows(attempts_path),
+            args.departure_min,
+            args.departure_max_exclusive,
+        )
+        if not attempts:
+            continue
+
+        grid_points: set[tuple[float, float]] = set()
+        covered_grid_points: set[tuple[float, float]] = set()
+        formal_success_attempts = 0
+        usable_attempts = 0
+        finite_delta_v_attempts = 0
+        for row in attempts:
+            departure = parse_float(row.get("departure_mjd2000"))
+            tof_days = parse_float(row.get("tof_days"))
+            grid_key = (departure, tof_days)
+            if np.isfinite(departure) and np.isfinite(tof_days):
+                grid_points.add(grid_key)
+
+            formal_success = parse_bool(row.get(success_field))
+            usable = parse_bool(row.get("usable"))
+            finite_delta_v = np.isfinite(parse_float(row.get("delta_v_km_s")))
+            formal_success_attempts += int(formal_success)
+            usable_attempts += int(usable)
+            finite_delta_v_attempts += int(finite_delta_v)
+            if usable and finite_delta_v and grid_key in grid_points:
+                covered_grid_points.add(grid_key)
+
+        branch_attempts = len(attempts)
+        total_grid_points = len(grid_points)
+
+        def percentage(count: int, total: int) -> float:
+            return 100.0 * float(count) / float(total) if total else float("nan")
+
+        output_rows.append(
+            {
+                "case": str(args.case),
+                "target": str(CASE_CONFIGS[args.case]["display"]),
+                "method": method,
+                "method_label": label,
+                "success_field": success_field,
+                "branch_attempts": branch_attempts,
+                "formal_success_attempts": formal_success_attempts,
+                "formal_failure_attempts": branch_attempts - formal_success_attempts,
+                "formal_success_percent": percentage(formal_success_attempts, branch_attempts),
+                "usable_attempts": usable_attempts,
+                "unusable_attempts": branch_attempts - usable_attempts,
+                "usable_percent": percentage(usable_attempts, branch_attempts),
+                "finite_delta_v_attempts": finite_delta_v_attempts,
+                "total_grid_points": total_grid_points,
+                "covered_grid_points": len(covered_grid_points),
+                "grid_coverage_percent": percentage(len(covered_grid_points), total_grid_points),
+            }
+        )
+
+    if not output_rows:
+        return
+    with output_path.open("w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(output_rows[0]))
+        writer.writeheader()
+        writer.writerows(output_rows)
 
 
 def read_timing_method_row(path: Path, method_names: set[str]) -> dict[str, str]:
@@ -2245,8 +2489,8 @@ def main() -> None:
             pareto_y_max = 30.0 if args.pareto_y_max is None else float(args.pareto_y_max)
         elif args.case == "mercury":
             pareto_x_min = 18.0 if args.pareto_x_min is None else float(args.pareto_x_min)
-            pareto_x_max = 30.0 if args.pareto_x_max is None else float(args.pareto_x_max)
-            pareto_y_min = 0.1 if args.pareto_y_min is None else float(args.pareto_y_min)
+            pareto_x_max = 24.0 if args.pareto_x_max is None else float(args.pareto_x_max)
+            pareto_y_min = 0.0 if args.pareto_y_min is None else float(args.pareto_y_min)
             pareto_y_max = 10.0 if args.pareto_y_max is None else float(args.pareto_y_max)
         elif args.case == "tempel1":
             pareto_x_min = 12.0 if args.pareto_x_min is None else float(args.pareto_x_min)
@@ -2260,7 +2504,7 @@ def main() -> None:
             pareto_y_max = 1.6 if args.pareto_y_max is None else float(args.pareto_y_max)
         else:
             pareto_x_min = 5.6 if args.pareto_x_min is None else float(args.pareto_x_min)
-            pareto_x_max = 7.0 if args.pareto_x_max is None else float(args.pareto_x_max)
+            pareto_x_max = 6.4 if args.pareto_x_max is None else float(args.pareto_x_max)
             pareto_y_min = 0.075 if args.pareto_y_min is None else float(args.pareto_y_min)
             pareto_y_max = 0.2 if args.pareto_y_max is None else float(args.pareto_y_max)
         plot_pareto_zoom(
@@ -2274,8 +2518,30 @@ def main() -> None:
             swap_axes=pareto_swap_axes,
             method_order=[method for method in pareto_method_order if method != "gondelach_fig2"],
             method_labels=pareto_method_labels,
-            auto_fit_x=args.pareto_x_min is None and args.pareto_x_max is None,
-            auto_fit_y=args.pareto_y_min is None and args.pareto_y_max is None,
+            auto_fit_x=(
+                args.pareto_x_min is None
+                and args.pareto_x_max is None
+                and args.case not in {"mars", "mercury"}
+            ),
+            auto_fit_y=(
+                args.pareto_y_min is None
+                and args.pareto_y_max is None
+                and args.case != "mercury"
+            ),
+            x_ticks=(
+                np.asarray(args.pareto_x_ticks, dtype=float)
+                if args.pareto_x_ticks is not None
+                else None
+            ),
+            y_ticks=(
+                np.asarray(args.pareto_y_ticks, dtype=float)
+                if args.pareto_y_ticks is not None
+                else (
+                    np.asarray([0.0, 2.0, 4.0, 6.0, 8.0, 10.0], dtype=float)
+                    if args.case == "mercury" and not pareto_swap_axes
+                    else None
+                )
+            ),
         )
         plot_pareto_delta_v_tof(
             output_figure_path(plots_output_dir, args.case, f"comparisonpareto_tof{suffix}", args.figure_format),
@@ -2285,6 +2551,7 @@ def main() -> None:
             method_labels=pareto_method_labels,
             log_delta_v=args.case == "1989ml",
             legend_loc="upper right" if args.case == "tempel1" else None,
+            x_ticks=np.arange(500.0, 2000.1, 250.0) if args.case == "mars" else None,
         )
 
     best_profile_outputs: list[Path] = []

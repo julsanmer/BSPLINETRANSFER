@@ -21,13 +21,14 @@ if str(ROOT) not in sys.path:
 from experiments.compare_gondelach_fig2_fig3_bspline10 import CASE_CONFIGS  # noqa: E402
 from experiments.postprocess_compare_gondelach_plots import (  # noqa: E402
     BsplineVariantSpec,
+    bspline_attempts_path,
     bspline_variant_label,
     comparison_grids_path,
     parse_bspline_variant_spec,
 )
 
 
-DEFAULT_VARIANTS = ["10:5", "10:3", "40:5", "40:3"]
+DEFAULT_VARIANTS = ["10:3", "10:5", "20:3", "20:5", "bezier:10:9", "bezier:20:19"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,6 +88,50 @@ def method_grid_from_npz(path: Path, variant: BsplineVariantSpec | None) -> np.n
     return np.asarray(data["variant_delta_v_km_s"], dtype=float)
 
 
+def parse_bool(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y"}
+
+
+def successful_optimizer_grid(
+    attempts_path: Path,
+    departure_grid: np.ndarray,
+    tof_grid: np.ndarray,
+    success_field: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return per-cell formal success and best Delta-V among successful N branches."""
+
+    if not attempts_path.is_file():
+        raise FileNotFoundError(f"Missing optimizer attempts: {attempts_path}")
+    shape = (len(tof_grid), len(departure_grid))
+    success = np.zeros(shape, dtype=bool)
+    best_delta_v = np.full(shape, np.nan, dtype=float)
+    departure_index = {round(float(value), 9): idx for idx, value in enumerate(departure_grid)}
+    tof_index = {round(float(value), 9): idx for idx, value in enumerate(tof_grid)}
+
+    with attempts_path.open(newline="") as file:
+        for row in csv.DictReader(file):
+            try:
+                departure = round(float(row["departure_mjd2000"]), 9)
+                tof_days = round(float(row["tof_days"]), 9)
+            except (KeyError, TypeError, ValueError):
+                continue
+            i_dep = departure_index.get(departure)
+            i_tof = tof_index.get(tof_days)
+            if i_dep is None or i_tof is None or not parse_bool(row.get(success_field)):
+                continue
+            success[i_tof, i_dep] = True
+            try:
+                delta_v = float(row["delta_v_km_s"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not np.isfinite(delta_v):
+                continue
+            previous = best_delta_v[i_tof, i_dep]
+            if not np.isfinite(previous) or delta_v < previous:
+                best_delta_v[i_tof, i_dep] = delta_v
+    return success, best_delta_v
+
+
 def grid_summary(
     case_name: str,
     body_label: str,
@@ -95,10 +140,12 @@ def grid_summary(
     grid: np.ndarray,
     gondelach_grid: np.ndarray,
     total_grid_points: int,
+    optimizer_success: np.ndarray,
+    statistics_mask: np.ndarray,
 ) -> dict[str, object]:
     finite = np.isfinite(grid)
-    common = finite & np.isfinite(gondelach_grid)
-    values = finite_values(grid)
+    common = statistics_mask & finite & np.isfinite(gondelach_grid)
+    values = finite_values(grid[statistics_mask])
     common_values = np.asarray(grid[common], dtype=float)
     common_gondelach = np.asarray(gondelach_grid[common], dtype=float)
     diff = common_values - common_gondelach
@@ -114,6 +161,9 @@ def grid_summary(
         "total_grid_points": total_grid_points,
         "finite_points": int(finite.sum()),
         "finite_percent": pct(int(finite.sum()), total_grid_points),
+        "optimizer_success_points": int(optimizer_success.sum()),
+        "optimizer_success_percent": pct(int(optimizer_success.sum()), total_grid_points),
+        "statistics_common_all_methods_points": int(statistics_mask.sum()),
         "common_with_gondelach_points": int(common.sum()),
         "mean_delta_v_km_s": float(np.nanmean(values)) if values.size else float("nan"),
         "median_delta_v_km_s": float(np.nanmedian(values)) if values.size else float("nan"),
@@ -162,35 +212,18 @@ def compute_case_rows(
     if not base_path.exists():
         raise FileNotFoundError(f"Missing base grid: {base_path}")
     base = np.load(base_path)
-    fig3 = np.asarray(base["fig3_delta_v_km_s"], dtype=float)
+    departure_grid = np.asarray(base["departure_mjd2000"], dtype=float)
+    tof_grid = np.asarray(base["tof_days"], dtype=float)
+    fig3_success, fig3 = successful_optimizer_grid(
+        output_dir / "fig3_attempts.csv",
+        departure_grid,
+        tof_grid,
+        "optimizer_success",
+    )
     total_points = int(fig3.size)
 
-    rows: list[dict[str, object]] = []
-    rows.append(
-        grid_summary(
-            case_name,
-            body_label,
-            "gondelach_fig3",
-            "Gondelach high-order",
-            fig3,
-            fig3,
-            total_points,
-        )
-    )
-    if "fig2_delta_v_km_s" in base.files:
-        rows.append(
-            grid_summary(
-                case_name,
-                body_label,
-                "gondelach_fig2",
-                "Gondelach low-order",
-                np.asarray(base["fig2_delta_v_km_s"], dtype=float),
-                fig3,
-                total_points,
-            )
-        )
-
     method_grids: dict[str, np.ndarray] = {"gondelach_fig3": fig3}
+    method_success: dict[str, np.ndarray] = {"gondelach_fig3": fig3_success}
     method_labels: dict[str, str] = {"gondelach_fig3": "Gondelach high-order"}
 
     for variant in variants:
@@ -199,16 +232,55 @@ def compute_case_rows(
         if not path.exists():
             print(f"warning: missing {path}", file=sys.stderr)
             continue
-        grid = method_grid_from_npz(path, variant)
+        success, grid = successful_optimizer_grid(
+            bspline_attempts_path(output_dir, variant),
+            departure_grid,
+            tof_grid,
+            "success",
+        )
         label = bspline_variant_label(variant)
-        rows.append(grid_summary(case_name, body_label, key, label, grid, fig3, total_points))
         method_grids[key] = grid
+        method_success[key] = success
         method_labels[key] = label
 
-    common_mask = np.isfinite(fig3)
-    for grid in method_grids.values():
-        common_mask &= np.isfinite(grid)
+    common_mask = np.ones_like(fig3_success, dtype=bool)
+    for key in method_grids:
+        common_mask &= method_success[key] & np.isfinite(method_grids[key])
     common_count = int(common_mask.sum())
+
+    rows: list[dict[str, object]] = []
+    for key, grid in method_grids.items():
+        rows.append(
+            grid_summary(
+                case_name,
+                body_label,
+                key,
+                method_labels[key],
+                grid,
+                fig3,
+                total_points,
+                method_success[key],
+                common_mask,
+            )
+        )
+
+    if "fig2_delta_v_km_s" in base.files:
+        fig2 = np.asarray(base["fig2_delta_v_km_s"], dtype=float)
+        fig2_finite = np.isfinite(fig2)
+        rows.insert(
+            1,
+            grid_summary(
+                case_name,
+                body_label,
+                "gondelach_fig2",
+                "Gondelach low-order",
+                fig2,
+                fig3,
+                total_points,
+                fig2_finite,
+                common_mask,
+            ),
+        )
     winner_counts = {key: 0 for key in method_grids}
     if common_count:
         keys = list(method_grids)

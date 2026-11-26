@@ -1,0 +1,210 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage[margin=2.5cm]{geometry}
+
+\newcommand{\umax}{u_{\max}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+
+\title{Sundman-transformed Pythagorean shaping with a rational-B\'ezier hull bound}
+\author{Implementation note for \texttt{optimizer/pythagorean\_3d\_sundman.py}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\noindent
+This note records the formulation implemented in
+\texttt{optimizer/pythagorean\_3d\_sundman.py}. It is a separate shaping family
+from \texttt{optimizer/pythagorean\_3d\_bernstein.py}, not a faster solver for the
+same trajectories: a spline in the Sundman arc is not a spline in time, so the
+two reach different sets of trajectories and belong in separate rows of any
+comparison table.
+
+\section{Parametrization}
+
+Four primitive splines $h,p,q,\theta$ of degree $n$ per knot span define the
+cylindrical state through
+\begin{equation}
+  \rho = h\,(p^2-q^2), \qquad z = 2hpq, \qquad R = h\,(p^2+q^2),
+\end{equation}
+so that $R^2=\rho^2+z^2$ holds identically. Writing $p=c\cos(\phi/2)$ and
+$q=c\sin(\phi/2)$ gives $\rho=hc^2\cos\phi$, $z=hc^2\sin\phi$ and $R=hc^2$: the
+pair $(p,q)$ is polar with half-latitude argument, and the split of $R$ between
+$h$ and $c$ is a one-parameter gauge freedom, fixed at the endpoints by $c=1$.
+
+Unlike the two-spline form $\rho+iz=(a+ib)^2$, this construction does \emph{not}
+enforce $\rho\ge 0$ automatically; $\rho=a^2-b^2$ is not sign definite in either
+form. Positivity of $\rho$ and of $R$ is imposed explicitly as Bernstein
+coefficient bounds, as described in Section~\ref{sec:geometry}.
+
+\section{Sundman transformation}
+
+Let the independent variable be the Sundman arc $s=S\sigma$, where $\sigma\in[0,1]$
+is the spline parameter and $S$ is a free scalar, with
+\begin{equation}
+  dt = R\,ds .
+\end{equation}
+With primes denoting $d/ds$,
+\begin{equation}
+  \dot{\mathbf r} = \frac{\mathbf r'}{R},
+  \qquad
+  \ddot{\mathbf r} = \frac{R\,\mathbf r'' - R'\,\mathbf r'}{R^3},
+\end{equation}
+so a single factor $R^3$ clears both the kinematics and the gravity term. The
+thrust numerators $\mathbf P = R^3\mathbf u$ are polynomial:
+\begin{align}
+  P_\rho   &= R\rho'' - R'\rho' - R\rho\,\theta'^2 + \mu\rho, \\
+  P_\theta &= \rho\,(R\theta'' - R'\theta') + 2R\,\rho'\theta', \\
+  P_z      &= R z''   - R' z'   + \mu z,
+\end{align}
+with $W = R^3$ and $\mathbf u = \mathbf P / W$.
+
+In implementation $S$ enters only through the span arc length $S/\text{spans}$
+passed to the Bernstein derivative operator, so no explicit powers of $S$ appear
+in $\mathbf P$.
+
+\paragraph{Degrees.} Per span, for primitives of degree $n$:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & time parametrization & Sundman \\
+\midrule
+$R$, $\rho$, $z$                       & $3n$      & $3n$ \\
+worst numerator ($P_\rho$)             & $14n-2$   & $8n-2$ \\
+denominator $W=R^3$                    & $9n$      & $9n$ \\
+squared certificate $\umax^2R^6-\norm{\mathbf P}^2$ & $28n-4$ & $18n$ \\
+hull common degree $m=\max(\deg\mathbf P,\deg W)$   & $14n-2$ & $\mathbf{9n}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Under the transformation the numerators fall below the denominator, so the
+common degree is set by $W$ alone. This is what makes the hull condition of
+Section~\ref{sec:hull} the natural partner of the transformation.
+
+\paragraph{Resolution.} Since $dt=R\,ds$, uniform steps in $s$ are short in time
+near perihelion. The Sundman variable therefore clusters spline resolution where
+the gravity gradient is largest, at fixed spline degree.
+
+\section{Convex-hull thrust bound}
+\label{sec:hull}
+
+Elevating $\mathbf P$ and $W$ to the common degree $m=9n$, the control
+acceleration is a rational B\'ezier curve
+\begin{equation}
+  \mathbf u(\sigma)
+  = \frac{\sum_{i=0}^{m} W_i\,B_i^m(\sigma)\,\mathbf q_i}
+         {\sum_{i=0}^{m} W_i\,B_i^m(\sigma)},
+  \qquad \mathbf q_i = \frac{\mathbf P_i}{W_i}.
+\end{equation}
+If every $W_i>0$ the curve is a convex combination of the $\mathbf q_i$, so
+$\norm{\mathbf u}\le\max_i\norm{\mathbf q_i}$ and
+\begin{equation}
+  \norm{\mathbf P_i}^2 \le \umax^2\,W_i^2,
+  \qquad i=0,\dots,m,
+  \label{eq:hull}
+\end{equation}
+is sufficient for $\norm{\mathbf u(\sigma)}\le\umax$ on the whole span. This is
+$9n+1$ smooth scalar constraints per span; the squared form avoids the
+nonsmooth norm, and the degree-$18n$ product is never formed.
+
+\paragraph{Positivity is free here.} The Bernstein product identity has strictly
+positive weights, so nonnegative coefficients are closed under products and
+$W=R^3$ inherits strict positivity from the constraint $R_i\ge R_{\min}>0$
+already imposed on the geometry. De Casteljau subdivision, being a convex
+combination, preserves it as well. No separate $W_i\ge\varepsilon$ rows are
+needed; the code verifies $\min_i W_i>0$ after the solve instead.
+
+\paragraph{Conservatism.} Condition~\eqref{eq:hull} and Bernstein nonnegativity
+of $\umax^2R^6-\norm{\mathbf P}^2$ are both sufficient and neither implies the
+other. Both are tightened by subdivision, at rate $O(h^2)$ per span.
+
+\section{Transfer time}
+
+Time of flight is the constraint
+\begin{equation}
+  T = \int_0^S R\,ds = S\int_0^1 R\,d\sigma .
+\end{equation}
+The integral of a Bernstein polynomial is the mean of its coefficients, so with
+$\Delta=1/\text{spans}$ and $\deg R = 3n$,
+\begin{equation}
+  T = S\,\Delta\sum_{\text{spans}}\frac{1}{3n+1}\sum_{i=0}^{3n} R_i^{(\text{span})},
+\end{equation}
+which is exact and bilinear in $(S,R_i)$: one scalar equality, no quadrature.
+The same identity gives the physical time grid exactly, since the antiderivative
+of a degree-$3n$ B\'ezier is the degree-$(3n{+}1)$ B\'ezier whose coefficients
+are the scaled partial sums of $R_i$. Its inverse $\sigma(t)$ is obtained by a
+bisection-safeguarded Newton iteration, using $dt/d\sigma = SR>0$.
+
+\section{Boundary conditions and geometry}
+\label{sec:geometry}
+
+Endpoint positions are unchanged, depending only on the primitive values. Rates
+transform as $f' = S\,R\,\dot f$, so at the endpoints, where $R$ equals the known
+$r_0$ or $r_f$, the two control points adjacent to each end remain affine in $S$
+and the analytic elimination of the endpoint conditions is preserved.
+
+The geometric constraints are imposed as before on the Bernstein coefficients of
+$\rho$ and $R$, both of degree $3n$:
+$\rho_i\ge\rho_{\min}$ and $R_i\ge R_{\min}$.
+
+\section{Objectives}
+
+The peak is invariant under the reparametrization, since $\sigma\mapsto t$ is a
+strictly increasing bijection for $R>0$:
+\begin{equation}
+  \max_t\norm{\mathbf u} = \max_\sigma\norm{\mathbf u}.
+\end{equation}
+Minimum-peak comparisons against time-parametrized families are therefore
+made on the same functional; only the representable set differs. Integral
+objectives pick up the Jacobian weight,
+\begin{equation}
+  \int\norm{\mathbf u}\,dt = S\int_0^1 \norm{\mathbf u}\,R\,d\sigma,
+  \qquad
+  \int\norm{\mathbf u}^2 dt = S\int_0^1 \norm{\mathbf u}^2 R\,d\sigma,
+\end{equation}
+and any metric sampled in normalized physical time requires the inverse map
+$\sigma(t)$ rather than uniform sampling in $\sigma$.
+
+\section{Numerical behaviour}
+
+Two cases, both solved with IPOPT through CasADi, minimum peak acceleration,
+against the time-parametrized squared certificate on identical boundary data.
+
+\begin{center}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+Case & Formulation & rows & degree & wall [s] & $\umax$ [mm/s$^2$] & $\Delta V$ [km/s] \\
+\midrule
+ Synthetic, $n=2$, 5 ctrl & time, certificate & 159 & 52  & 0.24 & 0.647024 & 23.44 \\
+                          & Sundman, hull     &  57 & 18  & 0.09 & 0.631234 & 20.52 \\
+\addlinespace
+ Earth--Mars, $n=9$, 10 ctrl & time, certificate & 249 & 248 & 12.44 & 0.287038 & 10.187 \\
+                             & Sundman, hull     &  82 &  81 &  2.56 & 0.275805 &  9.734 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The Earth--Mars case is a SPICE rendezvous departing 2028-06-24 with a 460-day
+transfer and one additional revolution, solved as a single B\'ezier span, so the
+row counts are exactly $9n+1=82$ against $28n-3=249$.
+
+The hull bound proved close to tight on both cases. On the Earth--Mars case the
+bound required by the returned trajectory is $0.27580482$ mm/s$^2$ against a
+densely sampled peak of $0.27580482$ mm/s$^2$; on the synthetic case, replacing
+\eqref{eq:hull} by pointwise enforcement at interior nodes returns the same
+optimum to the printed digits. Post-solve checks give a transfer-time error of
+$8.7\times10^{-12}$, endpoint position and velocity errors at machine precision,
+and a Pythagorean identity error of $1.4\times10^{-15}$.
+
+\paragraph{Caveat.} The minimum-peak start is scaled by the hull bound of the
+seed trajectory. At $n=3$ with one subdivision level the default initial factor
+of $1.05$ starts too close to that bound and IPOPT reports local infeasibility;
+an initial factor of $2$, or a warm start from the unsubdivided solution, both
+converge to the same optimum.
+
+\end{document}

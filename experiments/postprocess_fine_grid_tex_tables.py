@@ -5,7 +5,19 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import sys
 from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from experiments.postprocess_global_statistics import (  # noqa: E402
+    compute_case_rows,
+    parse_bspline_variant_spec,
+    write_csv as write_statistics_csv,
+)
 
 
 DEFAULT_CASE_DIRS = {
@@ -27,7 +39,7 @@ DEFAULT_CASE_DIRS = {
     ),
 }
 
-CASE_ORDER = ["mars", "mercury", "tempel1", "1989ml"]
+CASE_ORDER = ["mars", "mercury", "1989ml", "tempel1"]
 CASE_LABELS = {
     "mars": "Mars",
     "mercury": "Mercury",
@@ -38,16 +50,21 @@ METHOD_ORDER = [
     "gondelach_fig3",
     "bspline_nctrl10_deg3",
     "bspline_nctrl10_deg5",
-    "bspline_nctrl40_deg3",
-    "bspline_nctrl40_deg5",
+    "bspline_nctrl20_deg3",
+    "bspline_nctrl20_deg5",
+    "bezier_nctrl10_deg9",
+    "bezier_nctrl20_deg19",
 ]
 METHOD_LABELS = {
     "gondelach_fig3": "High-order hodographic",
     "bspline_nctrl10_deg3": r"Cubic B-spline ($n_c=10$)",
     "bspline_nctrl10_deg5": r"Quintic B-spline ($n_c=10$)",
-    "bspline_nctrl40_deg3": r"Cubic B-spline ($n_c=40$)",
-    "bspline_nctrl40_deg5": r"Quintic B-spline ($n_c=40$)",
+    "bspline_nctrl20_deg3": r"Cubic B-spline ($n_c=20$)",
+    "bspline_nctrl20_deg5": r"Quintic B-spline ($n_c=20$)",
+    "bezier_nctrl10_deg9": r"B\'ezier ($n_c=10$, $p=9$)",
+    "bezier_nctrl20_deg19": r"B\'ezier ($n_c=20$, $p=19$)",
 }
+STATISTICS_VARIANTS = ["10:3", "10:5", "20:3", "20:5", "bezier:10:9", "bezier:20:19"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,11 +116,11 @@ def write_delta_v_table(path: Path, case_dirs: dict[str, Path]) -> None:
         r"\label{tab:fine_grid_delta_v_statistics}",
         r"\centering",
         r"\small",
-        r"\begin{tabular}{llrrr}",
+        r"\begin{tabular}{llcrrr}",
         r"\toprule",
-        r"Target & Method & Mean & Median & Minimum \\",
-        r" & & \multicolumn{3}{c}{$\Delta V$ [km/s]} \\",
-        r"\cmidrule(lr){3-5}",
+        r"Target & Method & Optimizer & Mean & Median & Minimum \\",
+        r" & & success [\%] & \multicolumn{3}{c}{$\Delta V$ [km/s]} \\",
+        r"\cmidrule(lr){4-6}",
         r"\midrule",
     ]
     for case_index, case_name in enumerate(CASE_ORDER):
@@ -117,6 +134,7 @@ def write_delta_v_table(path: Path, case_dirs: dict[str, Path]) -> None:
                     [
                         CASE_LABELS[case_name],
                         METHOD_LABELS[method],
+                        format_float(finite_float(row, "optimizer_success_percent"), 2),
                         format_float(finite_float(row, "mean_delta_v_km_s"), 3),
                         format_float(finite_float(row, "median_delta_v_km_s"), 3),
                         format_float(finite_float(row, "min_delta_v_km_s"), 3),
@@ -133,7 +151,7 @@ def write_delta_v_table(path: Path, case_dirs: dict[str, Path]) -> None:
 def write_timing_table(path: Path, case_dirs: dict[str, Path]) -> None:
     lines = [
         r"\begin{table*}[htbp!]",
-        r"\caption{Computational performance for the fine-grid transfer campaigns. A grid attempt denotes one departure-date/TOF/revolution-branch evaluation. The estimated serial wall time is the sum of branch-local runtimes, removing the effect of B-spline worker parallelization, and the mean is the corresponding time per grid attempt.}",
+        r"\caption{Computational performance for the fine-grid transfer campaigns.}",
         r"\label{tab:fine_grid_computational_times}",
         r"\centering",
         r"\small",
@@ -173,10 +191,22 @@ def write_timing_table(path: Path, case_dirs: dict[str, Path]) -> None:
     path.write_text("\n".join(lines))
 
 
+def refresh_case_delta_v_statistics(case_dirs: dict[str, Path]) -> None:
+    variants = [parse_bspline_variant_spec(spec) for spec in STATISTICS_VARIANTS]
+    for case_name in CASE_ORDER:
+        rows, best_row = compute_case_rows(case_name, case_dirs[case_name], variants)
+        write_statistics_csv(case_dirs[case_name] / "global_statistics_delta_v.csv", rows)
+        write_statistics_csv(
+            case_dirs[case_name] / "global_statistics_best_method_by_grid_point.csv",
+            [best_row],
+        )
+
+
 def main() -> None:
     args = parse_args()
     case_dirs = {case_name: Path(getattr(args, f"{case_name}_dir")) for case_name in CASE_ORDER}
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    refresh_case_delta_v_statistics(case_dirs)
     delta_path = args.output_dir / "delta_v_statistics_fine_grids.tex"
     timing_path = args.output_dir / "computational_times_fine_grids.tex"
     write_delta_v_table(delta_path, case_dirs)
