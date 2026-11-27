@@ -223,12 +223,12 @@ Problem~\eqref{prob:main} as
 		r^3(\ddot{\rho}-\rho\dot{\theta}^{2})+\mu\rho\\[1mm]
 		r^3(2\dot{\rho}\dot{\theta}+\rho\ddot{\theta})\\[1mm]
 		r^3\ddot{z}+\mu z
-	\end{bmatrix}=\dfrac{1}{W}
+	\end{bmatrix}=\dfrac{1}{r^3}
 	\begin{bmatrix}
 		P_\rho\\[1mm]
 		P_\theta\\[1mm]
 		P_z
-	\end{bmatrix},\qquad W=r^3,
+	\end{bmatrix},
 	\label{eq:flatness2}
 \end{equation}
 so that the control is a rational function of the shaped coordinates and
@@ -296,17 +296,17 @@ and Eq.~\eqref{eq:clamped-elimination} is applied to those.
 Let us focus on the control acceleration constraint by expanding the shaped
 control acceleration of Eq.~\eqref{eq:flatness2},
 \begin{equation}
-	\dfrac{1}{W}\sqrt{P^2_\rho+P^2_\theta+P^2_z}\leq u_{\max}.
+	\dfrac{1}{r^3}\sqrt{P^2_\rho+P^2_\theta+P^2_z}\leq u_{\max}.
 \end{equation}
 To simplify the previous expression let us square both sides of the
 constraint and multiply the resulting expression by $W^2$,
 \begin{equation}
-	P^2_\rho+P^2_\theta+P^2_z \leq W^2 u^2_{\max},
+	P^2_\rho+P^2_\theta+P^2_z \leq r^6 u^2_{\max},
 	\label{eq:squared-thrust-constraint}
 \end{equation}
 where the main obstruction to applying polynomial positivity techniques is
-that in cylindrical coordinates $W=r^3=(\rho^2+z^2)^{3/2}$ is not a
-polynomial. Note that $W$ also appears in $P_\rho$, $P_\theta$ and $P_z$.
+that in cylindrical coordinates $r^3=(\rho^2+z^2)^{3/2}$ is not a
+polynomial. Note that $r^3$ also appears in $P_\rho$, $P_\theta$ and $P_z$.
 Enforcing the inequality at a finite set of nodes is the usual remedy, but it
 leaves the constraint unverified between nodes. Section~\ref{sec:enforcement}
 removes the obstruction and enforces the bound on the whole trajectory.
@@ -351,7 +351,7 @@ in Section~\ref{sec:rendezvous}.
 
 If $p$ and $q$ are polynomials of degree $n$ in the curve parameter, it
 follows from Eq.~\eqref{eq:levi-civita-radius} that $r$ is a polynomial of
-degree $2n$ and $W=r^3$ is a polynomial of degree $6n$.
+degree $2n$ and $r^3$ is a polynomial of degree $6n$.
 
 \subsection{Physical-time thrust certificate}
 \label{sec:time-certificate}
@@ -389,9 +389,9 @@ Let us define the kinematic acceleration terms
 	\end{aligned}
 	\label{eq:time-kinematic-terms}
 \end{equation}
-and the cubic heliocentric distance $W=r^3$ as
+and the cubic heliocentric distance $r^3$ as
 \begin{equation}
-	W = (p^2+q^2)^3=p^6+3p^4q^2+3p^2q^4+q^6.
+	r^3 = (p^2+q^2)^3=p^6+3p^4q^2+3p^2q^4+q^6.
 	\label{eq:levi-civita-weight}
 \end{equation}
 Then, the thrust constraint of Eq.~\eqref{eq:squared-thrust-constraint} can
@@ -399,18 +399,18 @@ be written in the meridional Levi-Civita primitives and the heliocentric
 longitude as
 \begin{equation}
 	\underbrace{
-		\left(W\mathcal A_\rho+\mu (p^2-q^2)\right)^2
+		\left(r^3\mathcal A_\rho+\mu (p^2-q^2)\right)^2
 	}_{P_\rho^{2}}
 	+
 	\underbrace{
-		\left(W\mathcal A_\theta\right)^2
+		\left(r^3\mathcal A_\theta\right)^2
 	}_{P_\theta^{2}}
 	+
 	\underbrace{
-		\left(W\mathcal A_z+2\mu pq\right)^2
+		\left(r^3\mathcal A_z+2\mu pq\right)^2
 	}_{P_z^{2}}
 	\leq
-	W^2\,u_{\max}^2.
+	r^6\,u_{\max}^2.
 	\label{eq:pythagorean-time-certificate}
 \end{equation}
 Time derivatives are taken with respect to the normalized time $\tau$, which
@@ -422,8 +422,8 @@ Table~\ref{tab:thrust-certificate-degrees}.
 
 \begin{table}[htbp]
 	\centering
-	\caption{Polynomial degrees of the squared thrust terms for degree-$n$
-		Levi-Civita primitives in physical time.}
+	\caption{Polynomial degree of the thrust constraint for degree-$n$
+	$(p,q,\theta)$ parameterized with time.}
 	\label{tab:thrust-certificate-degrees}
 	\begin{tabular}{lc}
 		\toprule
@@ -432,21 +432,21 @@ Table~\ref{tab:thrust-certificate-degrees}.
 		$P_\rho^{2}$   & $20n-4$ \\
 		$P_\theta^{2}$ & $18n-4$ \\
 		$P_z^{2}$      & $16n-4$ \\
-		$W^2=r^6$      & $12n$   \\
+		$r^6$      & $12n$   \\
 		\midrule
-		$W^2u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$
+		$r^6 u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$
 		& $20n-4$ \\
 		\bottomrule
 	\end{tabular}
 \end{table}
 
 Requiring every Bernstein coefficient of the degree-$(20n-4)$ polynomial
-$W^2u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$ to be nonnegative on each span
+$r^6u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$ to be nonnegative on each span
 is a sufficient condition for the thrust constraint and constitutes the
 physical-time baseline of this work. Its degree, however, makes the condition
 expensive and ill-conditioned already for moderate $n$, which motivates the
 two developments that follow: a change of independent variable that lowers
-the degree of the numerators below that of $W$
+the degree of the numerators below that of $r^3$
 (Section~\ref{sec:sundman}), and a convex-hull condition that never forms the
 squared polynomial (Section~\ref{sec:hull}).
 
@@ -471,36 +471,37 @@ with respect to the Sundman parameter $s$ with primes, the chain rule gives
 	\label{eq:sundman-chain-rule}
 \end{equation}
 The second derivative carries the same denominator $r^3$ as the gravity
-term, so no further multiplication by $W=r^3$ is needed to clear the control.
+term, so no further multiplication by $r^3$ is needed to clear the control.
 In cylindrical components, substituting Eq.~\eqref{eq:sundman-chain-rule}
 into Eq.~\eqref{eq:flatness2} gives
 \begin{equation}
-	\mathbf{u}=\dfrac{1}{W}\begin{bmatrix}
+	\mathbf{u}=\dfrac{1}{r^3}\begin{bmatrix}
 		r\rho''-r'\rho'-r\rho\,(\theta')^2+\mu\rho\\
 		\rho\,(r\theta''-r'\theta')+2r\rho'\theta'\\
 		rz''-r'z'+\mu z
 	\end{bmatrix},
 	\label{eq:sundman-control}
 \end{equation}
-with the same $W=r^3$ as before. Each entry equals $r^3$ times the physical
+Each entry equals $r^3$ times the physical
 kinematic acceleration of Eq.~\eqref{eq:time-kinematic-terms} plus the
 gravity numerator, but the factor $r^3$ is now supplied by the chain rule
 instead of being multiplied in. Accordingly, in the Sundman parameter the
-kinematic terms are redefined as $r^3$ times the physical ones,
-$\mathcal A_\rho=r^3(\ddot\rho-\rho\dot\theta^2)$,
-$\mathcal A_\theta=r^3(2\dot\rho\dot\theta+\rho\ddot\theta)$ and
-$\mathcal A_z=r^3\ddot z$, which in the Levi-Civita primitives read
+kinematic terms are $r^3$ times the physical ones
+\begin{equation*}
+\mathcal{B}_\rho=r^3\mathcal{A}_\rho,\quad\mathcal{B}_\theta=r^3\mathcal{A}_\theta,\quad \mathcal{B}_z=r^3\mathcal{A}_z,
+\end{equation*}
+which are also epxressed as
 \begin{equation}
 	\begin{aligned}
-		\mathcal A_\rho
+		\mathcal B_\rho
 		&=r\rho''-r'\rho'-r\rho\,(\theta')^2
 		=2r\left(pp''-qq''\right)
 		-\rho\left[2\left(p'^2+q'^2\right)+r\,(\theta')^2\right],\\
-		\mathcal A_\theta
+		\mathcal B_\theta
 		&=\rho\,(r\theta''-r'\theta')+2r\rho'\theta'
 		= r\rho\,\theta''
 		+2\left[pp'\left(p^2+3q^2\right)-qq'\left(3p^2+q^2\right)\right]\theta',\\
-		\mathcal A_z
+		\mathcal B_z
 		&=rz''-r'z'
 		= 2r\left(qp''+pq''\right)-2z\left(p'^2+q'^2\right),
 	\end{aligned}
@@ -510,18 +511,18 @@ with $r=p^2+q^2$, $\rho=p^2-q^2$ and $z=2pq$. The thrust constraint of
 Eq.~\eqref{eq:squared-thrust-constraint} becomes
 \begin{equation}
 	\underbrace{
-		\left(\mathcal A_\rho+\mu (p^2-q^2)\right)^2
+		\left(\mathcal B_\rho+\mu (p^2-q^2)\right)^2
 	}_{P_\rho^{2}}
 	+
 	\underbrace{
-		\mathcal A_\theta^{2}
+		\mathcal B_\theta^{2}
 	}_{P_\theta^{2}}
 	+
 	\underbrace{
-		\left(\mathcal A_z+2\mu pq\right)^2
+		\left(\mathcal B_z+2\mu pq\right)^2
 	}_{P_z^{2}}
 	\leq
-	W^2\,u_{\max}^2.
+	r^6\,u_{\max}^2.
 	\label{eq:sundman-certificate}
 \end{equation}
 Each numerator contains at most one factor of $r$ together with two
@@ -529,6 +530,26 @@ derivatives, so $P_\rho$, $P_\theta$ and $P_z$ have degrees $6n-2$, $5n-2$
 and $4n-2$, all below $\deg W=6n$. The squared constraint of
 Eq.~\eqref{eq:sundman-certificate} has degree $12n$ instead of the $20n-4$
 of Eq.~\eqref{eq:pythagorean-time-certificate}.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Polynomial degree of the thrust constraint for degree-$n$
+		$(p,q,\theta)$ parameterized with the Sundman parameter.}
+	\label{tab:sundman-certificate-degrees}
+	\begin{tabular}{lc}
+		\toprule
+		\textbf{Polynomial term} & \textbf{Degree} \\
+		\midrule
+		$P_\rho^{2}$   & $12n-4$ \\
+		$P_\theta^{2}$ & $10n-4$ \\
+		$P_z^{2}$      & $8n-4$ \\
+		$r^6$      & $12n$   \\
+		\midrule
+		$r^6 u_{\max}^2-P_\rho^{2}-P_\theta^{2}-P_z^{2}$
+		& $12n$ \\
+		\bottomrule
+	\end{tabular}
+\end{table}
 
 The change of independent variable alters the curve parameter of
 Section~\ref{sec:shaping}. The primitives are now shaped in the normalized
@@ -557,304 +578,86 @@ in the control points and linear in $S$.
 \subsection{Rational B\'ezier convex-hull enforcement}
 \label{sec:hull}
 
-Although Eq.~\eqref{eq:sundman-thrust-constraint} has a lower
-degree than its physical-time counterpart, directly constructing
-its squared polynomial still produces a degree-$18n$ constraint.
-Instead, the cylindrical control-component vector is represented
-as a rational B\'ezier curve.
+On each span, with local parameter $\sigma\in[0,1]$, any polynomial of degree
+at most $m$ can be written in the Bernstein basis
+$B^m_i(\sigma)=\binom{m}{i}\sigma^i(1-\sigma)^{m-i}$. Let $m$ be the largest
+of the degrees of $P_\rho$, $P_\theta$, $P_z$ and $r^3$, given in
+Table~\ref{tab:hull-degrees}, and let the remaining polynomials be
+degree-elevated to $m$, which is exact and linear in their coefficients.
+Then $\mathbf{P}=[P_{\rho},\>P_{\theta},\>P_z]^T$ and $r^3$ share the same
+basis,
+\begin{equation}
+	\mathbf{P}(\sigma)=\sum^{m}_{i=0}\mathbf{P}_i B^m_i(\sigma),\qquad
+	r^3(\sigma)=\sum^{m}_{i=0}W_i B^m_i(\sigma),
+\end{equation}
+and the control is the ratio
+\begin{equation}
+	\mathbf{u}(\sigma)=\dfrac{\mathbf{P}(\sigma)}{r^3(\sigma)}
+	=\dfrac{\sum\limits^{m}_{i=0}\mathbf{P}_i B^m_i(\sigma)}
+	{\sum\limits^{m}_{j=0}W_j B^m_j(\sigma)}.
+\end{equation}
+Defining the control points $\mathbf{c}_i=\mathbf{P}_i/W_i$, so that
+$\mathbf{P}_i=W_i\mathbf{c}_i$, and splitting the fraction term by term,
+\begin{equation}
+	\mathbf{u}(\sigma)
+	=\sum^{m}_{i=0}\lambda_i(\sigma)\,\mathbf{c}_i,
+	\qquad
+	\lambda_i(\sigma)=\dfrac{W_i B^m_i(\sigma)}
+	{\sum\limits^{m}_{j=0}W_j B^m_j(\sigma)},
+	\label{eq:rational-bezier}
+\end{equation}
+which is a rational B\'ezier curve with control points $\mathbf{c}_i$ and
+weights $W_i$.
 
-On each knot span, let $\sigma\in[0,1]$ denote the local affine
-coordinate. The numerator components and denominator are
-degree-elevated to the common degree
-\begin{equation}
-	m=\deg W=3\deg r,
-\end{equation}
-which is $9n$ for the scaled map and $6n$ for the Levi-Civita and KS
-maps. Degree elevation preserves the represented functions exactly.
-Their Bernstein representations are
-\begin{equation}
-	\mathbf P(\sigma)
-	=\sum_{i=0}^{m}B_i^m(\sigma)\mathbf P_i,
-	\qquad
-	W(\sigma)
-	=\sum_{i=0}^{m}B_i^m(\sigma)W_i,
-\end{equation}
-where
-\begin{equation}
-	\mathbf P_i
-	=(P_{\rho,i},P_{\theta,i},P_{z,i})^\mathsf{T},
-	\qquad
-	B_i^m(\sigma)
-	=\binom{m}{i}\sigma^i(1-\sigma)^{m-i}.
-\end{equation}
-The coefficients $\mathbf P_i$ incorporate the derivative
-scaling associated with the mapping from the Sundman parameter
-$s$ to the local coordinate $\sigma$.
+By construction $\sum_i\lambda_i(\sigma)=1$. Since $B^m_i(\sigma)\geq 0$ on
+$\sigma\in[0,1]$ and $\sum_j B^m_j(\sigma)=1$, positive weights $W_i>0$ give
+$\sum_j W_jB^m_j(\sigma)\geq\min_j W_j>0$ and $\lambda_i(\sigma)\geq 0$.
+The control is then a convex combination of the control points and lies
+inside the convex hull of $\{\mathbf{c}_0,\ldots,\mathbf{c}_m\}$ for every
+$\sigma\in[0,1]$.
 
-If every $W_i>0$, the control can be written as
+Suppose now that $\lVert\mathbf{c}_i\rVert\leq u_{\max}$ for
+$i=0,\ldots,m$. By the triangle inequality,
+\begin{equation*}
+	\lVert\mathbf{u}(\sigma)\rVert
+	=\Big\lVert\sum_i\lambda_i(\sigma)\mathbf{c}_i\Big\rVert
+	\leq\sum_i\lambda_i(\sigma)\lVert\mathbf{c}_i\rVert
+	\leq u_{\max},
+	\qquad \sigma\in[0,1].
+\end{equation*}
+Since $\mathbf{c}_i=\mathbf{P}_i/W_i$ and $W_i>0$, the thrust constraint on
+the whole span is therefore guaranteed by the $m+1$ conditions
 \begin{equation}
-	\mathbf u(\sigma)
-	=\frac{\mathbf P(\sigma)}{W(\sigma)}
-	=\sum_{i=0}^{m}\lambda_i(\sigma)\mathbf q_i,
-	\qquad
-	\mathbf q_i=\frac{\mathbf P_i}{W_i},
-	\qquad
-	\lambda_i(\sigma)
-	=\frac{B_i^m(\sigma)W_i}{W(\sigma)}.
-\end{equation}
-Because $\lambda_i(\sigma)\geq0$ and
-$\sum_i\lambda_i(\sigma)=1$, the complete rational curve lies
-inside the convex hull of the rational control points
-$\mathbf q_i$. In particular,
-\begin{equation}
-	\|\mathbf u(\sigma)\|_2
-	\leq \sum_{i=0}^{m}\lambda_i(\sigma)\|\mathbf q_i\|_2
-	\leq \max_{0\leq i\leq m}\|\mathbf q_i\|_2.
-\end{equation}
-Since the Euclidean ball of radius $u_{\max}$ is convex,
-the coefficient-wise conditions
-\begin{equation}
-	P_{\rho,i}^2+P_{\theta,i}^2+P_{z,i}^2
-	\leq u_{\max}^2W_i^2,
+	P^2_{\rho,i}+P^2_{\theta,i}+P^2_{z,i}\leq u^2_{\max}W^2_i,
 	\qquad i=0,\ldots,m,
-	\label{eq:rational-hull-constraints}
+	\label{eq:hull}
 \end{equation}
-are sufficient to guarantee
-$\|\mathbf u(\sigma)\|_2\leq u_{\max}$ throughout the span.
+written in squared form to avoid both the division by $W_i$ and the
+nonsmooth norm. The positivity $W_i>0$ is inherited from the lower bound
+imposed on the Bernstein coefficients of $r$, since products and degree
+elevation of positive Bernstein coefficients remain positive.
 
-Weight positivity is enforced through the Bernstein
-coefficients of the heliocentric distance $r=hC$.
-Writing
-\begin{equation}
-	r(\sigma)=\sum_{j=0}^{d}B_j^d(\sigma)r_j,
-	\qquad d=\deg r,
-\end{equation}
-we impose $r_j\geq r_{\min}>0$. The coefficients of
-$W=r^3$, of degree $3d=m$, are then
-\begin{equation}
-	W_i
-	=\sum_{\substack{a+b+c=i\\0\leq a,b,c\leq d}}
-	\frac{\binom{d}{a}\binom{d}{b}\binom{d}{c}}
-	{\binom{3d}{i}}\,
-	r_a r_b r_c.
-\end{equation}
-The factors multiplying the products are nonnegative and sum
-to unity for each $i$. Consequently,
-\begin{equation}
-	W_i\geq r_{\min}^3>0.
-\end{equation}
-Thus, positive lower bounds on the radius coefficients ensure
-both a nonsingular Sundman time map and positive rational
-weights. Pointwise positivity of $r$ alone would not imply
-positivity of all its Bernstein coefficients.
-
-The rational convex-hull condition introduces $m+1$ smooth
-scalar thrust inequalities per span without forming the
-degree-$18n$ squared polynomial. These inequalities involve
-squares of individual coefficients; they do not require
-constructing the Bernstein coefficients of
-$\mathbf P^\mathsf{T}\mathbf P$. By comparison, enforcing
-nonnegativity of every Bernstein coefficient of
-\begin{equation}
-	F(\sigma)
-	=u_{\max}^2W(\sigma)^2
-	-\mathbf P(\sigma)^\mathsf{T}\mathbf P(\sigma)
-\end{equation}
-requires $2m+1$ coefficient inequalities per span.
-Both constructions provide sufficient conditions, but neither
-is generally necessary, and neither generally implies the other.
-
-The rational hull condition is conservative: the curve may
-satisfy the thrust limit even when a rational control point lies
-outside the admissible ball. This conservatism can be reduced
-by subdividing each span. Applying de Casteljau subdivision
-jointly to $\mathbf P$ and $W$ preserves the rational curve
-exactly and produces smaller local convex hulls with positive
-weights. After $k$ levels of uniform binary subdivision,
-each original span has $2^k$ subspans, giving
-\begin{equation}
-	N_{\mathrm{hull}}=2^k(m+1)
-\end{equation}
-scalar thrust inequalities per original span, before removing
-any duplicate endpoint conditions. The polynomial degree
-remains unchanged.
-
-For comparison, grid-based enforcement applies the thrust
-limit only at a finite set of points. It generally admits a
-larger feasible set but does not guarantee the bound between
-grid nodes. The rational hull supplies a continuous bound
-throughout each span when the coefficient inequalities and
-weight-positivity conditions hold.
-
-Finally, the Sundman and physical-time descriptions are
-equivalent at the continuous level whenever $r>0$ and the
-boundary conditions and time of flight are transformed
-consistently. However, finite-dimensional spline spaces in
-different independent variables generally produce different
-admissible shaping families for a fixed degree and number of
-control points. The Sundman formulation therefore constitutes
-a distinct trajectory parameterization, in addition to reducing
-the algebraic degree of the thrust enforcement.
-
-\subsection{Shaping families}
-\label{sec:shaping-families}
-
-Each map of Section~\ref{sec:pythagorean}, combined with the Sundman
-variable of Section~\ref{sec:sundman} and the hull condition of
-Section~\ref{sec:hull}, defines a shaping family. The three families share
-the exact Bernstein time-of-flight constraint, the analytical elimination of
-the endpoint control points, and the coefficient-wise inequalities of
-Eq.~\eqref{eq:rational-hull-constraints}; they differ in the degree of the
-hull, in the endpoint formulas, and in the way the revolution count is
-prescribed. Since the maps are nonlinear, the families span different sets
-of trajectories for a given degree and number of control points and are not
-interchangeable.
-
-\subsubsection{Levi-Civita family}
-
-With primitives $\mathbf p=[p,\,q,\,\theta]^T$ and the map of
-Eq.~\eqref{eq:levi-civita-map}, the numerators are those of
-Eq.~\eqref{eq:sundman-numerators} with $r=p^2+q^2$. Since $\rho$, $z$, and
-$r$ have degree $2n$, the numerator degrees are $6n-2$, $5n-2$, and $4n-2$,
-$W$ has degree $6n$, and the hull is formed at $m=6n$ with $6n+1$
-inequalities per span. The endpoint values follow from
-\begin{equation}
-	p=\sqrt{r}\cos\left(\frac{\phi}{2}\right),\qquad
-	q=\sqrt{r}\sin\left(\frac{\phi}{2}\right),
-	\label{eq:levi-civita-endpoints}
-\end{equation}
-and the endpoint rates by differentiation, with $f'=r\dot f$. The
-coefficient bounds $r_j\geq r_{\min}$ and $\rho_i\geq\rho_{\min}$ are imposed
-on polynomials of degree $2n$. This is the smallest family: three
-primitives, no gauge freedom, and the lowest hull degree among the
-meridional maps.
-
-\subsubsection{Scaled Levi-Civita family}
-
-With primitives $\mathbf p=[h,\,p,\,q,\,\theta]^T$ and the map of
-Eq.~\eqref{eq:pythagorean-map}, substituting $\rho=hA$, $z=hB$, and $r=hC$
-into Eq.~\eqref{eq:sundman-numerators} and expanding gives
-\begin{equation}
-	\begin{aligned}
-		P_\rho&=\mathcal D_\rho-h^2CA(\theta')^2+\mu hA,\\
-		P_\theta&=h^2CA\theta''+\left[hh'CA+h^2(2CA'-AC')\right]\theta',\\
-		P_z&=\mathcal D_z+\mu hB,
-	\end{aligned}
-	\label{eq:scaled-numerators}
-\end{equation}
-with
-\begin{equation}
-	\begin{aligned}
-		\mathcal D_\rho
-		&=hC(h''A+2h'A'+hA'')
-		-(h'C+hC')(h'A+hA'),\\
-		\mathcal D_z
-		&=hC(h''B+2h'B'+hB'')
-		-(h'C+hC')(h'B+hB'),
-	\end{aligned}
-\end{equation}
-where the Sundman derivatives of $A$, $B$, and $C$ have the same form as
-their physical-time derivatives in Section~\ref{sec:pythagorean}. The
-numerators have degrees $8n-2$, $7n-2$, and $6n-2$, $W$ has degree $9n$,
-and the hull is formed at $m=9n$ with $9n+1$ inequalities per span. The
-gauge freedom is fixed at the endpoints by
-\begin{equation}
-	h=r,\qquad
-	p=\cos\left(\frac{\phi}{2}\right),\qquad
-	q=\sin\left(\frac{\phi}{2}\right),
-	\label{eq:pythagorean-endpoint-normalization}
-\end{equation}
-where $\phi$ is the ecliptic latitude, so that $p^2+q^2=1$ and the prescribed
-cylindrical position is recovered exactly; differentiating
-Eq.~\eqref{eq:pythagorean-endpoint-normalization} provides the primitive
-endpoint rates. The normalization is imposed only at the endpoints, and
-$p^2+q^2$ is not constrained to unity in the interior. Besides $r_j\geq r_{\min}$, the Bernstein coefficients of
-$\rho=hA$, of degree $3n$, are bounded below by $\rho_{\min}>0$ so that the
-cylindrical longitude remains well defined; note that $\rho=h(p^2-q^2)$ is
-not sign definite by construction.
-
-\subsubsection{Kustaanheimo--Stiefel family}
-
-With primitives $\mathbf w$ and the map of Eq.~\eqref{eq:ks-map}, the
-control is shaped in Cartesian components through
-Eq.~\eqref{eq:sundman-cartesian-numerators}, and the centripetal and
-Coriolis terms of the cylindrical description disappear. All three
-numerators have degree $4n-2$, $W$ has degree $6n$, and the hull is formed
-at $m=6n$ with $6n+1$ inequalities per span. No bound on $\rho$ is needed,
-since the longitude is not a primitive; only $r_j\geq r_{\min}$ is imposed on
-the degree-$2n$ coefficients of $r$.
-
-Two features distinguish this family. First, as noted in
-Section~\ref{sec:pythagorean}, every position corresponds to a circle
-(fibre) of KS points, generated by the tangent $\mathbf t(\mathbf w)=[-w_4,\,w_3,\,-w_2,\,w_1]^T$ along which
-$\mathbf x$ is invariant. Writing $\mathbf x=\mathbf L(\mathbf w)\mathbf w$
-with the KS matrix $\mathbf L$, the position rate satisfies
-$\dot{\mathbf x}=2\mathbf L(\mathbf w)\dot{\mathbf w}$ and the primitive
-rate consistent with a prescribed velocity $\mathbf v$ is
-\begin{equation}
-	\dot{\mathbf w}
-	=\frac{\mathbf L(\mathbf w)^T\mathbf v}{2r}
-	+\lambda\,\mathbf t(\mathbf w),
-	\label{eq:ks-rate}
-\end{equation}
-where $\lambda$ is arbitrary. The initial point is fixed on its fibre, while
-the terminal fibre angle and the fibre components $\lambda$ of both endpoint
-rates are additional decision variables that leave the Cartesian rendezvous
-conditions untouched. Second, the number of revolutions is no longer an
-endpoint value. It is carried by a continuous lift of the seed trajectory, in
-which each sampled position is mapped to the point of its fibre closest to
-the previous one. To make the count strict, the longitude is factored as
-\begin{equation}
-	x+\mathrm{i}y=\mathcal A\,\mathcal B,\qquad
-	\mathcal A=(w_1+w_3)+\mathrm{i}\,(w_2+w_4),\qquad
-	\mathcal B=(w_1-w_3)+\mathrm{i}\,(w_2-w_4),
-	\label{eq:ks-factors}
-\end{equation}
-so that $\theta=\arg\mathcal A+\arg\mathcal B$ and $\rho=|\mathcal A||\mathcal B|$.
-Both factors are linear in the primitives. Each span is subdivided until the
-seed turns $\mathcal A$ and $\mathcal B$ by less than a prescribed sweep on
-every piece, and on each piece the Bernstein coefficients of the factor are
-confined to the half-plane
-\begin{equation}
-	\operatorname{Re}\left(\mathrm{e}^{-\mathrm{i}\alpha}\mathcal A_j\right)
-	\geq\delta>0,
-	\qquad j=0,\ldots,n,
-	\label{eq:ks-revolution-lock}
-\end{equation}
-with $\alpha$ the mean argument of the seed on that piece, and likewise for
-$\mathcal B$. These are linear inequalities in the control points. By the
-convex-hull property, the factor itself stays in the half-plane on the piece,
-so it can neither wind around the origin nor vanish. The swept longitude is
-thus fixed to that of the seed and the trajectory cannot cross the polar
-axis.
-
-\subsubsection{Summary}
-
-Table~\ref{tab:shaping-families} collects the polynomial degrees and the
-number of hull inequalities per span. The Levi-Civita and KS families reach
-the same hull degree, $6n$, with three and four primitives, respectively,
-whereas the scaled family pays for its extra primitive with a hull of
-degree $9n$. All families are enforced through the same rational hull
-condition; node-wise enforcement at a finite set of points is retained only as
-a reference for quantifying the conservatism of the hull. For the
-scaled family the physical-time certificate of
-Eq.~\eqref{eq:pythagorean-time-certificate} is also available, so that the
-Sundman and physical-time enforcement can be compared on the same
-primitives.
+The condition is sufficient but not necessary, because the interior control
+points do not lie on the curve; subdividing the span brings them closer to
+it and reduces the conservatism.
 
 \begin{table}[htbp]
 	\centering
-	\caption{Implemented Pythagorean shaping families for degree-$n$
-		primitives in the Sundman parameter.}
-	\label{tab:shaping-families}
-	\begin{tabular}{lccccc}
+	\caption{Polynomial degrees entering the convex-hull condition for
+		degree-$n$ $(p,q,\theta)$, parameterized with time and with the
+		Sundman parameter.}
+	\label{tab:hull-degrees}
+	\begin{tabular}{lcc}
 		\toprule
-		\textbf{Family} & \textbf{Primitives} & $\deg r$ & $\max\deg\mathbf P$
-		& $\deg W=m$ & \textbf{Rows per span} \\
+		\textbf{Polynomial term} & \textbf{Time} & \textbf{Sundman} \\
 		\midrule
-		Levi-Civita        & $p,q,\theta$     & $2n$ & $6n-2$ & $6n$ & $6n+1$ \\
-		Scaled Levi-Civita & $h,p,q,\theta$   & $3n$ & $8n-2$ & $9n$ & $9n+1$ \\
-		KS             & $w_1,\ldots,w_4$ & $2n$ & $4n-2$ & $6n$ & $6n+1$ \\
+		$P_\rho$   & $10n-2$ & $6n-2$ \\
+		$P_\theta$ & $9n-2$  & $5n-2$ \\
+		$P_z$      & $8n-2$  & $4n-2$ \\
+		$r^3$      & $6n$    & $6n$   \\
+		\midrule
+		Common degree $m$             & $10n-2$ & $6n$   \\
+		Inequalities per span, $m+1$  & $10n-1$ & $6n+1$ \\
 		\bottomrule
 	\end{tabular}
 \end{table}
